@@ -37,6 +37,7 @@ import { wrapper as axios_cookiejar_warper } from "axios-cookiejar-support";
 import Constants from "expo-constants";
 import type { OpenAPIV3_1 } from "openapi-types";
 import { Cookie, CookieJar, type SerializedCookieJar } from "tough-cookie";
+import { useWebViewAPIStore } from "~/store/webViewAPIStore";
 import DiscourseAPIGenerated from "./generated";
 import spec from "./openapi.json";
 
@@ -241,6 +242,14 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 	protected cookieJar: CookieJar;
 	private url: string;
 	protected username?: string;
+	// 防止并发调用 get_session_csrf
+	private isGettingCsrf = false;
+	// 上一次尝试获取CSRF的时间，用于节流
+	private lastCsrfAttempt = 0;
+	// CF验证后获取的cf_clearance cookie
+	private cfClearanceCookie: string | null = null;
+	// 是否使用 WebView API 进行网络请求
+	private useWebViewAPI = true;
 
 	/**
 	 * Creates a new Discourse API client.
@@ -255,6 +264,8 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 		this.url = url;
 		this.eventEmitter = new EventEmitter();
 		this.cookieJar = new CookieJar();
+		this.isGettingCsrf = false;
+		this.lastCsrfAttempt = 0;
 
 		this.axiosInstance =
 			// axios_cookiejar_warper(
@@ -285,6 +296,8 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 					"X-Requested-With": "XMLHttpRequest",
 				},
 				validateStatus: (status) => (status >= 200 && status < 300) || status === 302,
+				// 添加超时设置，防止网络请求无限期等待
+				timeout: 10000, // 10秒超时
 			});
 		// );
 
@@ -294,12 +307,28 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 		}
 
 		this.axiosInstance.interceptors.request.use((config) => {
-			config.headers.Cookie = this.cookieJar.getCookieStringSync(this.url);
+			// 合并 tough-cookie 中的 cookies 和 CF clearance cookie
+			let cookieStr = this.cookieJar.getCookieStringSync(this.url);
+			if (this.cfClearanceCookie) {
+				cookieStr = cookieStr ? `${cookieStr}; ${this.cfClearanceCookie}` : this.cfClearanceCookie;
+			}
+			config.headers.Cookie = cookieStr;
 
+			// 修复CSRF令牌检查逻辑，避免无限递归
 			if (this.axiosInstance.defaults.headers.common["X-CSRF-Token"] === null) {
-				this.axiosInstance.defaults.headers.common["X-CSRF-Token"] === undefined;
+				this.axiosInstance.defaults.headers.common["X-CSRF-Token"] = undefined;
 				config.headers["X-CSRF-Token"] = undefined;
-				this.get_session_csrf();
+
+				// 避免在请求拦截器中同步调用异步方法
+				// 只在非CSRF请求中尝试获取CSRF令牌
+				const now = Date.now();
+				if (config.url !== "/session/csrf" && !this.isGettingCsrf && now - this.lastCsrfAttempt > 1000) {
+					this.lastCsrfAttempt = now;
+					this.isGettingCsrf = true;
+					this.get_session_csrf().finally(() => {
+						this.isGettingCsrf = false;
+					});
+				}
 			}
 
 			if (this.axiosInstance.defaults.headers.common["X-CSRF-Token"]) {
@@ -358,23 +387,59 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 			(error) => {
 				// note: for bad CSRF we don't loop an extra request right away.
 				//  this allows us to eliminate the possibility of having a loop.
-				if (error.response.status === 403 && error.response.data === '["BAD CSRF"]') {
+				if (error.response && error.response.status === 403 && error.response.data === '["BAD CSRF"]') {
 					this.axiosInstance.defaults.headers.common["X-CSRF-Token"] = null;
 				}
 
-				// Handle HTTP errors using instanceof check
-				if (error instanceof HTTPError) {
-					console.error("HTTPError:", error.status, error.message);
-					throw new HTTPError(
-						error.status,
-						`Authentication failed (status ${error.status}): ${error.message}`, // Include the response text.
-						error.response,
-					);
-				}
 				// Handle Axios-specific errors.
 				if (axios.isAxiosError(error)) {
 					this.emitAxiosError(error);
 					if (error.response) {
+						// 检测是否为Cloudflare挑战
+						const responseData = error.response.data;
+						const status = error.response.status;
+
+						// 检测CF挑战 - 支持403和503状态码
+						const isCfChallenge =
+							(status === 403 || status === 503) &&
+							typeof responseData === "string" &&
+							(responseData.includes("Just a moment...") ||
+								responseData.includes("_cf_chl_opt") ||
+								responseData.includes("challenge-platform") ||
+								responseData.includes("cf-browser-verification"));
+
+						console.log("=== Checking for Cloudflare challenge ===");
+						console.log("Status:", status);
+						console.log("Is string response:", typeof responseData === "string");
+						console.log("Is CF challenge:", isCfChallenge);
+
+						if (isCfChallenge) {
+							console.log("=== Cloudflare challenge detected! ===");
+							console.log("Triggering verification WebView...");
+
+							// 使用 WebViewAPIStore 显示验证界面
+							try {
+								useWebViewAPIStore.getState().showWebView();
+								console.log("WebView shown for CF verification");
+							} catch (e) {
+								console.error("Failed to show WebView:", e);
+							}
+
+							// 抛出一个特殊的错误，让调用者知道需要重试
+							const cfError = new Error("Cloudflare challenge required");
+							(cfError as Error & { isCloudflareChallenge: boolean }).isCloudflareChallenge = true;
+							throw cfError;
+						}
+
+						// Handle HTTP errors using instanceof check
+						if (error instanceof HTTPError) {
+							console.error("HTTPError:", error.status, error.message);
+							throw new HTTPError(
+								error.status,
+								`Authentication failed (status ${error.status}): ${error.message}`, // Include the response text.
+								error.response,
+							);
+						}
 						// The request was made and the server responded with a status code outside of the 2xx range.
 						console.error("Request failed:", error.response.status, error.response.statusText);
 						console.error("Response data:", error.response.data);
@@ -469,6 +534,23 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 
 	getUsername(): string | undefined {
 		return this.username;
+	}
+
+	/**
+	 * 设置 Cloudflare cf_clearance cookie
+	 * 用于在 WebView 验证完成后同步 cookie 到 API 客户端
+	 * @param cookie - cf_clearance cookie 字符串，格式为 "cf_clearance=xxx"
+	 */
+	setCfClearance(cookie: string | null): void {
+		console.log("setCfClearance called with:", cookie);
+		this.cfClearanceCookie = cookie;
+	}
+
+	/**
+	 * 获取当前的 CF clearance cookie
+	 */
+	getCfClearance(): string | null {
+		return this.cfClearanceCookie;
 	}
 
 	/**
@@ -578,6 +660,60 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 
 		// Construct the URL, replacing path parameters with their actual values.
 		const url = operation.path.replace(/\{([^}]+)\}/g, (_, p) => path[p] || `{${p}}`);
+
+		// 构造查询字符串
+		const queryString = Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : "";
+		const fullUrl = `${this.url}${url}${queryString}`;
+
+		// 如果使用 WebView API 进行请求
+		if (this.useWebViewAPI) {
+			console.log(`[WebViewAPI] Request: ${operation.method} ${url}`);
+
+			const { executeRequest, isReady } = useWebViewAPIStore.getState();
+
+			if (!isReady) {
+				console.warn("[WebViewAPI] WebView not ready, falling back to axios");
+				// 回退到 axios
+			} else {
+				try {
+					const fetchOptions: RequestInit = {
+						method: operation.method,
+						headers: {
+							Accept: "application/json",
+							"X-Requested-With": "XMLHttpRequest",
+							...header,
+						},
+						credentials: "include",
+					};
+
+					// 添加请求体
+					if (formData) {
+						fetchOptions.body = formData as unknown as BodyInit;
+					} else if (Object.keys(body).length > 0) {
+						fetchOptions.body = JSON.stringify(body);
+						fetchOptions.headers = {
+							...fetchOptions.headers,
+							"Content-Type": "application/json",
+						};
+					}
+
+					const webViewResponse = await executeRequest(fullUrl, fetchOptions);
+
+					if (!webViewResponse.ok) {
+						throw new HTTPError(
+							webViewResponse.status,
+							webViewResponse.statusText,
+							null as unknown as AxiosResponse, // WebView API 没有 AxiosResponse
+						);
+					}
+
+					return webViewResponse.data as T;
+				} catch (error) {
+					console.error("[WebViewAPI] Request failed:", error);
+					throw error;
+				}
+			}
+		}
 
 		// Prepare the Axios request configuration.
 		const requestConfig: AxiosRequestConfig = {

@@ -1,44 +1,25 @@
-import { Cat } from "lucide-react-native";
-import { useState } from "react";
-import { Alert, Dimensions, View, useWindowDimensions } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Dimensions, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { SceneMap, TabBar, TabView } from "react-native-tab-view";
 import { useActivityNavigation } from "~/app/activityScreen";
 import { useTheme } from "~/components/providers/ThemeProvider";
+import { SearchBox } from "~/components/search/SearchBox";
 import { TopicPanel } from "~/components/topic/TopicPanel";
 
-const ROUTES = [
-	{ key: "all", title: "All Topics" },
-	{ key: "unread", title: "Unread" },
-];
+export default function HomeScreen() {
+	const { t } = useTranslation();
+	const layout = useWindowDimensions();
+	const { colors } = useTheme();
+	const SCREEN_WIDTH = Dimensions.get("window").width;
+	const THRESHOLD = SCREEN_WIDTH * 0.3; // 30% of screen width as threshold for gesture
 
-const SCENE_MAP = SceneMap({
-	all: () => <TopicPanel listTopics="listLatestTopics" />,
-	unread: () => (
-		<TopicPanel
-			title="Unread Topics"
-			listTopics="listUnreadTopics"
-			swipe={[
-				// TODO: mark as read
-				{
-					text: "say nya!",
-					onPress: (item) => {
-						Alert.alert(`nya! (${item?.id})`);
-					},
-					backgroundColor: "#ffa9a3",
-					icon: <Cat size={24} className="text-sky-400" />,
-				},
-			]}
-		/>
-	),
-});
-
-const renderTabBar =
-	// biome-ignore lint/suspicious/noExplicitAny: for convenience
-	(props: any) => {
-		const colors = useTheme().colors;
-		return (
+	// renderTabBar 在组件内部定义，确保 useTheme 被正确调用
+	const renderTabBar = useCallback(
+		// biome-ignore lint/suspicious/noExplicitAny: for convenience
+		(props: any) => (
 			<View className="bg-card text-card-foreground">
 				<TabBar
 					{...props}
@@ -52,13 +33,28 @@ const renderTabBar =
 					swipeEnabled={true}
 				/>
 			</View>
-		);
-	};
+		),
+		[colors],
+	);
 
-export default function HomeScreen() {
-	const layout = useWindowDimensions();
-	const SCREEN_WIDTH = Dimensions.get("window").width;
-	const THRESHOLD = SCREEN_WIDTH * 0.3; // 30% of screen width as threshold for gesture
+	// Move SCENE_MAP inside the component to access the t function
+	// Use useMemo to prevent unnecessary re-creation of SceneMap and its components
+	const SCENE_MAP = useMemo(
+		() =>
+			SceneMap({
+				all: () => <TopicPanel listTopics="listLatestTopics" />,
+				top: () => <TopicPanel listTopics="listTopTopics" />,
+				hot: () => <TopicPanel listTopics="listHotTopics" />,
+			}),
+		[],
+	);
+
+	// Use translations for tab titles
+	const ROUTES = [
+		{ key: "all", title: t("home.allTopics") || "最新" },
+		{ key: "top", title: t("home.topTopics") || "排行榜" },
+		{ key: "hot", title: t("home.hotTopics") || "热门" },
+	];
 
 	const [index, setIndex] = useState(0);
 	const translateX = useSharedValue(0);
@@ -94,6 +90,9 @@ export default function HomeScreen() {
 		// <GestureHandlerRootView style={{ flex: 1 }}>
 		// <GestureDetector gesture={rightSwipeGesture}>
 		<Animated.View style={[{ flex: 1 }, animatedStyle]}>
+			{/* 搜索框 */}
+			<SearchBox />
+
 			<TabView
 				navigationState={{ index, routes: ROUTES }}
 				renderScene={SCENE_MAP}
@@ -102,7 +101,7 @@ export default function HomeScreen() {
 				renderTabBar={renderTabBar}
 				swipeEnabled={true}
 				lazy={true}
-				lazyPreloadDistance={1}
+				lazyPreloadDistance={0}
 			/>
 		</Animated.View>
 		// </GestureDetector>

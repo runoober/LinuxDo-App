@@ -17,7 +17,7 @@ export const useLinuxDoClientStore = create<LinuxDoClientState>()(
 			isLoading: false,
 			init: async ({ cookieManager, authState } = {}) => {
 				const { client: clientMaybeNull, isLoading } = get();
-				if (isLoading || clientMaybeNull !== null) return;
+				if (isLoading) return;
 				set({ isLoading: true });
 				authState ??= useAuthStore.getState();
 				const client = await LinuxDoClient.create({ cookieManager, authState });
@@ -25,6 +25,7 @@ export const useLinuxDoClientStore = create<LinuxDoClientState>()(
 					await client.get_session_csrf();
 				} catch (e) {
 					console.error("ERROR: When load_session_csrf", e);
+					// 继续执行，即使获取csrf失败也初始化client
 				}
 				set({ client: client, isLoading: false });
 			},

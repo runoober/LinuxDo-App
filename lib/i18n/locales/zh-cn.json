@@ -74,12 +74,30 @@
   "common": {
     "loading": "加载中",
     "failed": "加载失败",
+    "loadFailed": "加载失败",
+    "checkNetworkAndRetry": "请检查网络连接后重试",
+    "retry": "重试",
+    "error": "错误",
     "confirm": "确认",
     "read": "已读",
     "unread": "未读",
     "cancel": "取消",
     "save": "保存",
-    "delete": "删除"
+    "delete": "删除",
+    "history": "历史记录",
+    "recentHistory": "最近浏览",
+    "activities": "动态活动",
+    "viewMore": "查看更多"
+  },
+  "search": {
+    "placeholder": "搜索...",
+    "searchInAll": "在所有话题和帖子中",
+    "pressEnter": "或按 Enter",
+    "noSuggestions": "暂无建议",
+    "search": "搜索",
+    "noResults": "未找到相关话题",
+    "enterKeyword": "请输入关键词进行搜索",
+    "noMore": "没有更多结果了"
   },
   "notifications": {
     "mark_as_read": "标记为已读",
@@ -233,14 +251,62 @@
     "cooldownMessage": "冷却中 ({seconds}s)"
   },
   "tabs": {
-    "home": "首页",
-    "user": "用户",
+    "home": "话题",
+    "category": "分类",
+    "tags": "标签",
+    "messages": "消息",
+    "user": "我的",
+    "navigation": "导航",
+    "hotCategories": "热门分类",
+    "hotTags": "热门标签",
+    "externalLinks": "外部链接",
+    "categoryTitle": "分类: {{name}}",
+    "tagTitle": "标签: {{name}}",
     "dev": "开发调试"
   },
   "home": {
     "appName": "LUMA",
     "loadingTopics": "正在加载话题...",
-    "allTopics": "全部话题",
-    "unreadTopics": "未读话题"
+    "allTopics": "最新",
+    "topTopics": "排行榜",
+    "hotTopics": "热门"
+  },
+  "notFound": {
+    "pageNotFound": "页面不存在",
+    "backToHome": "返回首页"
+  },
+  "app": {
+    "description": "Linux.do 非官方移动应用",
+    "version": "版本",
+    "github": "GitHub",
+    "license": "许可证"
+  },
+  "user": {
+    "myProfile": "我的资料",
+    "userInformation": "用户信息",
+    "yourAccountDetails": "你的账号详情",
+    "username": "用户名",
+    "name": "名称",
+    "logoutOrSwitchAccount": "退出登录或切换账号"
+  },
+  "topic": {
+    "topics": "话题",
+    "noTopicsToDisplay": "没有话题可以显示",
+    "all": "全部",
+    "unread": "未读",
+    "bookmarked": "已收藏",
+    "trending": "热门",
+    "options": "话题选项",
+    "chooseAction": "选择一个操作",
+    "todo": "待办",
+    "believeWillDoneSoon": "相信很快就会完成",
+    "pinned": "置顶",
+    "lastReplyBy": "最后回复由",
+    "unbookmark": "取消收藏",
+    "bookmark": "收藏",
+    "replyTo": "回复",
+    "none": "无",
+    "failedToSubmitReply": "回复提交失败",
+    "replyToTopic": "回复话题"
   }
 }

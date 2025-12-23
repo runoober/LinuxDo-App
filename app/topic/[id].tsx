@@ -1,7 +1,9 @@
 import { useLocalSearchParams } from "expo-router";
 import { Stack } from "expo-router";
 import { Bookmark, Bug, Cat, Dog, Send } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import { useColorScheme } from "nativewind";
+import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Alert, Keyboard, Pressable, Share, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
@@ -12,17 +14,30 @@ import { Text } from "~/components/ui/text";
 import { LINUXDO_CONST } from "~/constants/linuxDo";
 import type { GetTopic200 } from "~/lib/gen/api/discourseAPI/schemas/getTopic200";
 import type { GetTopic200PostStreamPostsItem } from "~/lib/gen/api/discourseAPI/schemas/getTopic200PostStreamPostsItem";
+import { dampenColor, getTagColor } from "~/lib/utils/colorUtils";
 import { usePostsCache } from "~/store/cacheStore";
+import { useCategoriesStore } from "~/store/categoriesStore";
 import { useLinuxDoClientStore } from "~/store/linuxDoClientStore";
 
 export default function TopicScreen() {
-	const { id } = useLocalSearchParams<{ id: string }>();
+	const { id, post } = useLocalSearchParams<{ id: string; post?: string }>();
+	const initialPostNumber = post ? Number.parseInt(post) : undefined;
 	const client = useLinuxDoClientStore().client!;
 	const [topic, setTopic] = useState<GetTopic200 | undefined>(undefined);
 	const [replyInputVisible, setReplyInputVisible] = useState(false);
 	const [replyingToPost, setReplyingToPost] = useState<GetTopic200PostStreamPostsItem | null>(null);
 	const postsCache = usePostsCache();
 	const [viewKey, setViewKey] = useState(0);
+	const { t } = useTranslation();
+	const { categories, init: initCategories } = useCategoriesStore();
+	const { colorScheme } = useColorScheme();
+	const isDark = colorScheme === "dark";
+
+	// 获取分类信息
+	const category = useMemo(() => {
+		if (!topic?.category_id) return null;
+		return categories.find((c) => c.data.id === topic.category_id);
+	}, [categories, topic?.category_id]);
 
 	const handleRefresh = useCallback(() => {
 		postsCache.set(id, null);
@@ -98,13 +113,13 @@ export default function TopicScreen() {
 							className="rounded-sm flex-row bg-card items-center m-1 px-2 py-1"
 						>
 							<Bookmark size={16} className="text-card-foreground" fill={post.bookmarked ? "#3B82F6" : "none"} />
-							<Text className="ml-1 text-card-foreground">{post.bookmarked ? "Unbookmark" : "Bookmark"}</Text>
+							<Text className="ml-1 text-card-foreground">{post.bookmarked ? t("topic.unbookmark") : t("topic.bookmark")}</Text>
 						</Pressable>
 						<Pressable onPress={() => Alert.alert(`nya! (${post.id})`)} className="rounded-sm flex-row bg-card items-center m-1 px-2 py-1">
 							<Cat size={16} className="text-card-foreground" />
 							<Dog size={16} className="text-card-foreground" />
 							<Bug size={16} className="text-card-foreground" />
-							<Text className="ml-1 text-card-foreground">TODO</Text>
+							<Text className="ml-1 text-card-foreground">{t("topic.todo")}</Text>
 						</Pressable>
 						{/* TODO: add more */}
 					</View>
@@ -114,7 +129,9 @@ export default function TopicScreen() {
 						<Text className="text-sm">Created at: {new Date(post.created_at).toLocaleString()}</Text>
 						<Text className="text-sm">Post type: {post.post_type}</Text>
 						<Text className="text-sm">Post number: {post.post_number}</Text>
-						<Text className="text-sm">Reply to: {post.reply_to_post_number ?? "none"}</Text>
+						<Text className="text-sm">
+							{t("topic.replyTo")}: {post.reply_to_post_number ?? t("topic.none")}
+						</Text>
 						<Text className="text-sm">Reader count: {post.readers_count}</Text>
 						<Text className="text-sm">Reply count: {post.reply_count}</Text>
 						<Text className="text-sm">Quote count: {post.quote_count}</Text>
@@ -144,7 +161,7 @@ export default function TopicScreen() {
 				handleRefresh();
 			} catch (error) {
 				console.error("Error submitting reply:", error);
-				Alert.alert("Error", "Failed to submit reply");
+				Alert.alert(t("common.error"), t("topic.failedToSubmitReply"));
 			}
 		},
 		[id, client, handleRefresh],
@@ -171,14 +188,44 @@ export default function TopicScreen() {
 			{/* TODO: Nav Bar Title */}
 			<NavBar
 				content={
-					topic?.tags &&
-					topic.tags.length > 0 && (
-						<View className="flex-row flex-wrap ml-2">
-							{topic.tags.map((tag) => (
-								<View key={`${tag}`} className="px-2 py-1 rounded-full mr-2 mb-1 bg-muted">
-									<Text className="text-xs text-muted-foreground">{`${tag}`}</Text>
-								</View>
-							))}
+					(category || (topic?.tags && topic.tags.length > 0)) && (
+						<View className="flex-row flex-wrap ml-2 items-center">
+							{/* Category 显示在前面 */}
+							{category &&
+								(() => {
+									const softColors = dampenColor(`#${category.data.color}`, isDark);
+									return (
+										<View
+											className="px-2 py-0.5 rounded-md mr-2 border"
+											style={{
+												backgroundColor: softColors.bg,
+												borderColor: softColors.border,
+											}}
+										>
+											<Text className="text-[10px] font-bold" style={{ color: softColors.text }}>
+												{category.text}
+											</Text>
+										</View>
+									);
+								})()}
+							{/* Tags */}
+							{topic?.tags?.map((tag) => {
+								const tagColors = getTagColor(`${tag}`, isDark);
+								return (
+									<View
+										key={`${tag}`}
+										className="px-2 py-0.5 rounded-full mr-2 border"
+										style={{
+											backgroundColor: tagColors.bg,
+											borderColor: tagColors.border,
+										}}
+									>
+										<Text className="text-[10px] font-bold" style={{ color: tagColors.text }}>
+											{`${tag}`}
+										</Text>
+									</View>
+								);
+							})}
 						</View>
 					)
 				}
@@ -193,6 +240,7 @@ export default function TopicScreen() {
 					onReply={handleReply}
 					onLike={handleLike}
 					renderMore={renderMore}
+					initialPostNumber={initialPostNumber}
 				/>
 
 				{/* Reply to topic button */}
@@ -204,7 +252,7 @@ export default function TopicScreen() {
 						}}
 						className="bg-primary rounded-full px-5 py-3 shadow-lg flex-row items-center"
 					>
-						<Text className="text-primary-foreground font-medium mr-2">Reply to Topic</Text>
+						<Text className="text-primary-foreground font-medium mr-2">{t("topic.replyToTopic")}</Text>
 						<Send size={16} className="text-primary-foreground" />
 					</Pressable>
 				</Animated.View>

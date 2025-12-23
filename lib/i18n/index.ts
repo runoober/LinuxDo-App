@@ -22,8 +22,8 @@ export function initializeLanguage() {
 				translation: zh_cn,
 			},
 		},
-		lng: getCurrentLanguage(),
-		fallbackLng: "en",
+		lng: getCurrentLanguage() || "zh-CN", // 默认使用中文
+		fallbackLng: "zh-CN",
 	});
 }
 

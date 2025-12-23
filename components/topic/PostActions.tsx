@@ -1,4 +1,4 @@
-import { Bookmark, Heart, MoreHorizontal, Reply } from "lucide-react-native";
+import {Bookmark, Heart, MessageCircle, MoreHorizontal, Reply} from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { Text } from "~/components/ui/text";
@@ -17,8 +17,7 @@ export const PostActions = ({ post, onReply, onLike, renderMore }: PostActionsPr
 		<View className="flex-col">
 			<View className="flex-row justify-end items-center">
 				<Pressable onPress={() => onReply?.(post)} className="flex-row items-center mr-4">
-					<Reply size={16} className="text-muted-foreground" />
-					<Text className="ml-1 text-sm text-muted-foreground">Reply</Text>
+					<MessageCircle size={16} className="text-muted-foreground" />
 				</Pressable>
 
 				<Pressable onPress={() => onLike?.(post)} className="flex-row items-center mr-4">

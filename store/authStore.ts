@@ -18,6 +18,7 @@ export interface AuthState {
 	logout: () => Promise<void>;
 	checkLoginStatus: () => Promise<boolean>;
 	switchAccount: (uuid: string) => Promise<void>;
+	mergeCfCookies: (cfCookies: { name: string; value: string; domain?: string; path?: string }[]) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -132,6 +133,52 @@ export const useAuthStore = create<AuthState>()(
 						error: e instanceof Error ? e.message : String(e),
 					});
 					throw e;
+				}
+			},
+
+			mergeCfCookies: async (cfCookies: { name: string; value: string; domain?: string; path?: string }[]) => {
+				const { cookieManager } = get();
+
+				try {
+					// 获取当前的cookieJar
+					let cookieJar = cookieManager.getCurrentCookieJar();
+
+					// 如果没有现有的cookieJar，创建一个新的
+					if (!cookieJar) {
+						cookieJar = new CookieJar();
+					}
+
+					// 过滤出Cloudflare相关的cookies
+					const cfRelatedKeys = ["cf_clearance", "__cf_bm", "_cfuvid"];
+					const relevantCookies = cfCookies.filter((c) => cfRelatedKeys.some((key) => c.name.includes(key)) || c.name.startsWith("cf_"));
+
+					console.log(
+						"Merging CF cookies:",
+						relevantCookies.map((c) => c.name),
+					);
+
+					// 将Cloudflare cookies添加到cookieJar中
+					for (const cfCookie of relevantCookies) {
+						const cookie = new Cookie({
+							key: cfCookie.name,
+							value: cfCookie.value,
+							domain: cfCookie.domain || LINUXDO_CONST.DOMAIN,
+							path: cfCookie.path || "/",
+						});
+						await cookieJar.setCookie(cookie, LINUXDO_CONST.HTTPS_URL);
+					}
+
+					// 保存更新后的cookieJar
+					const serializedCookieJar = cookieJar.serializeSync();
+					if (serializedCookieJar) {
+						await cookieManager.setCurrentCookieJar(serializedCookieJar);
+						console.log("CF cookies merged successfully");
+
+						// 重新初始化客户端以使用新的cookies
+						await useLinuxDoClientStore.getState().init({ cookieManager, authState: get() });
+					}
+				} catch (e) {
+					console.error("ERROR: When merging CF cookies", e);
 				}
 			},
 		}),

@@ -1,5 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -71,6 +72,7 @@ export function useActivityNavigation() {
 export default function ActivityScreen() {
 	const router = useRouter();
 	const { navigate } = useActivityNavigation();
+	const { t } = useTranslation();
 	const localSearchparams = useLocalSearchParams<
 		ActivityScreenParams & {
 			auth: string;
@@ -243,7 +245,7 @@ export default function ActivityScreen() {
 					<View className="flex-1 bg-background">
 						<View className="px-4 border border-b border-border">
 							<View className="h-14 flex-row items-center">
-								<Text className="text-lg font-semibold">Activities</Text>
+								<Text className="text-lg font-semibold">{t("common.activities")}</Text>
 							</View>
 							<HistorySection
 								onPress={(i) => {

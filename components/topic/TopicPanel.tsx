@@ -1,18 +1,22 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert } from "react-native";
 import { View } from "react-native";
+import Toast from "react-native-toast-message";
 import { TopicList } from "~/components/topic/TopicList";
 import { Text } from "~/components/ui/text";
 import type LinuxDoClient from "~/lib/linuxDoClient";
+import { mergeUsersToTopics } from "~/lib/utils/topicUtils";
+import { useAuthStore } from "~/store/authStore";
 import { useLinuxDoClientStore } from "~/store/linuxDoClientStore";
 import type { SwipeAction } from "../SwipeableWrapper";
 import type { TopicCardItem } from "./TopicCard";
 
-export type TopicMethods = "listLatestTopics" | "listUnreadTopics" | "getTag" | "listCategoryTopics";
+export type TopicMethods = "listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics" | "getTag" | "listCategoryTopics";
 
 export type CommonTopicPanelProps = {
-	listTopics: "listLatestTopics" | "listUnreadTopics";
+	listTopics: "listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics";
 };
 export type TagTopicPanelProps = {
 	listTopics: "getTag";
@@ -42,18 +46,37 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 	const listTopics = props.listTopics;
 	const { t } = useTranslation();
 
-	const client = useLinuxDoClientStore().client!;
+	const { client, init: initClient } = useLinuxDoClientStore();
 	const router = useRouter();
+	const { isLoggedIn } = useAuthStore();
 
-	const [topicItems, setTopicItems] = useState<TopicCardItem[] | undefined>(props.initialItems);
+	// 如果是未读话题且用户未登录，直接初始化为空数组，避免显示加载状态
+	const initialItems = listTopics === "listUnreadTopics" && !isLoggedIn ? [] : props.initialItems;
+	const [topicItems, setTopicItems] = useState<TopicCardItem[] | undefined>(initialItems);
 	const [loadMoreUrl, setLoadMoreUrl] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasMore, setHasMore] = useState(true);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only run once
+	// Initialize client if not exists and refresh topics
 	useEffect(() => {
-		if (topicItems === undefined) handleRefresh();
-	}, []);
+		const initializeClientAndRefresh = async () => {
+			// 如果是未读话题且用户未登录，直接返回，不需要初始化客户端
+			if (listTopics === "listUnreadTopics" && !isLoggedIn) {
+				// 不需要设置topicItems，因为我们已经在初始状态设置了
+				return;
+			}
+
+			// 初始化客户端
+			if (!client) {
+				await initClient();
+			}
+
+			// 对于非未读话题或已登录用户，在客户端初始化后刷新数据
+			handleRefresh();
+		};
+
+		initializeClientAndRefresh();
+	}, [client, initClient, listTopics, isLoggedIn]); // 移除topicItems依赖，避免无限循环
 
 	// Only call onItemsChange when topicItems changes and is not undefined
 	useEffect(() => {
@@ -64,31 +87,53 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 	}, [topicItems, props.onItemsChange]);
 
 	const handleRefresh = useCallback(async () => {
-		if (isLoading) return; // Prevent multiple simultaneous calls
+		if (isLoading || !client) return; // Prevent multiple simultaneous calls and handle client undefined
+
+		// 如果是未读话题且用户未登录，不请求数据
+		if (listTopics === "listUnreadTopics" && !isLoggedIn) {
+			setTopicItems([]);
+			setIsLoading(false);
+			return;
+		}
 
 		try {
 			setIsLoading(true);
 			setTopicItems(undefined);
-			let topics: Awaited<ReturnType<LinuxDoClient["listLatestTopics" | "listUnreadTopics" | "getTag" | "listCategoryTopics"]>>;
-			if (listTopics === "listLatestTopics" || listTopics === "listUnreadTopics")
-				topics = await (client[listTopics] as () => ReturnType<LinuxDoClient["listLatestTopics" | "listUnreadTopics"]>)();
+			let topics: Awaited<
+				ReturnType<
+					LinuxDoClient["listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics" | "getTag" | "listCategoryTopics"]
+				>
+			>;
+			if (
+				listTopics === "listLatestTopics" ||
+				listTopics === "listUnreadTopics" ||
+				listTopics === "listTopTopics" ||
+				listTopics === "listHotTopics"
+			)
+				topics = await (
+					client[listTopics] as () => ReturnType<LinuxDoClient["listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics"]>
+				)();
 			else if (listTopics === "listCategoryTopics") topics = await client[listTopics](props.params);
 			else if (listTopics === "getTag") topics = await client[listTopics](props.params);
 			else throw Error("TopicPanel(handleRefresh): Invalid listTopics");
 
-			setTopicItems(topics.topic_list?.topics as TopicCardItem[]);
+			// 合并用户信息到话题列表
+			const topicsWithUsers = mergeUsersToTopics(topics.topic_list?.topics as TopicCardItem[], (topics as any).users);
+			setTopicItems(topicsWithUsers);
 			const moreUrl = client.getLoadMoreTopicsUrl(topics as { topic_list?: { more_topics_url?: string } });
 			setLoadMoreUrl(moreUrl);
 			setHasMore(moreUrl !== null);
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error fetching topics:", error);
+			// 凡是请求失败，都确保 topicItems 不为 undefined，从而允许用户看到空状态或进行下拉刷新
+			setTopicItems((prev) => prev || []);
 		} finally {
 			setIsLoading(false);
 		}
-	}, [client, isLoading, listTopics, props]);
+	}, [client, isLoading, listTopics, props, isLoggedIn]);
 
 	const handleLoadMore = useCallback(async () => {
-		if (isLoading || !hasMore || !topicItems?.length) return;
+		if (isLoading || !hasMore || !topicItems || topicItems.length === 0 || !client) return;
 
 		try {
 			setIsLoading(true);
@@ -100,11 +145,14 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 				throw Error("No more topics");
 			}
 
+			// 合并用户信息到新加载的话题
+			const newTopicsWithUsers = mergeUsersToTopics(newTopics as TopicCardItem[], (topics as any).users);
+
 			setTopicItems((prev) => {
-				if (!prev) return newTopics;
+				if (!prev) return newTopicsWithUsers;
 
 				const existingTopics = new Set(prev.map((topic) => topic.id));
-				const uniqueNewTopics = newTopics.filter((topic) => !existingTopics.has(topic.id));
+				const uniqueNewTopics = newTopicsWithUsers.filter((topic) => !existingTopics.has(topic.id));
 
 				if (!uniqueNewTopics.length) {
 					setHasMore(false);

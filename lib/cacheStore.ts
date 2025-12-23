@@ -35,9 +35,12 @@ export function createCacheStore<T>(name: string, lifetime: number = 10 * 60 * 1
 					const { caches, lifetime, get: getCache } = get();
 					const oldValue = getCache(name);
 					if (oldValue !== null && oldValue?.__CACHE_IDENTIFIER__ === value.__CACHE_IDENTIFIER__) return;
+					const cacheValue = (Array.isArray(value) ? [...value] : { ...value }) as CacheStoreItemValue<T>;
+					cacheValue.__CACHE_IDENTIFIER__ = uuidV4();
+
 					caches.set(name, {
 						name: name,
-						value: { __CACHE_IDENTIFIER__: uuidV4(), ...value },
+						value: cacheValue,
 						expired: new Date(Date.now() + lifetime),
 					});
 					set(() => ({ caches }));

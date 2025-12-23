@@ -1,6 +1,6 @@
 import { FlashList, type FlashListProps } from "@shopify/flash-list";
 import { useColorScheme } from "nativewind";
-import { type ComponentType, type JSXElementConstructor, type ReactElement, useCallback, useRef, useState } from "react";
+import { type ComponentType, type JSXElementConstructor, type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
@@ -11,6 +11,7 @@ import { PostSkeleton } from "./PostSkeleton";
 
 type PostListProps = {
 	posts: GetTopic200PostStreamPostsItem[];
+	opUsername?: string; // 楼主的username
 	onReply?: (post: GetTopic200PostStreamPostsItem) => void;
 	onLike?: (post: GetTopic200PostStreamPostsItem) => void;
 	renderMore?: (post: GetTopic200PostStreamPostsItem, rerenderItem: () => void) => React.ReactNode;
@@ -25,10 +26,13 @@ type PostListProps = {
 	disablePull2Refresh?: boolean;
 	hasMore?: boolean | (() => boolean);
 	extraFlashListProps?: Omit<FlashListProps<GetTopic200PostStreamPostsItem>, "ref" | "data" | "renderItem" | "ListHeaderComponent">;
+	/** 初始滚动到的帖子编号 (来自搜索结果) */
+	initialPostNumber?: number;
 };
 
 export const PostList = ({
 	posts,
+	opUsername,
 	onReply,
 	onLike,
 	renderMore,
@@ -42,6 +46,7 @@ export const PostList = ({
 	disablePull2Refresh,
 	hasMore,
 	extraFlashListProps,
+	initialPostNumber,
 }: PostListProps) => {
 	const { t } = useTranslation();
 	const { colorScheme } = useColorScheme();
@@ -53,6 +58,26 @@ export const PostList = ({
 	const onEndReachedCalledDuringMomentum = useRef(false);
 
 	const isDark = colorScheme === "dark";
+	const hasScrolledToInitialPost = useRef(false);
+
+	// 当 posts 加载完成且有 initialPostNumber 时，滚动到指定位置
+	useEffect(() => {
+		if (initialPostNumber && posts.length > 0 && listRef.current && !hasScrolledToInitialPost.current) {
+			const targetIndex = posts.findIndex((p) => p.post_number === initialPostNumber);
+
+			// 延迟一小段时间以确保列表已渲染
+			setTimeout(() => {
+				if (targetIndex >= 0) {
+					// 找到目标帖子，滚动到该位置
+					hasScrolledToInitialPost.current = true;
+					listRef.current?.scrollToIndex({ index: targetIndex, animated: true, viewPosition: 0.3 });
+				} else {
+					// 目标帖子不在已加载列表中，滚动到末尾以触发加载更多
+					listRef.current?.scrollToEnd({ animated: true });
+				}
+			}, 300);
+		}
+	}, [initialPostNumber, posts]);
 
 	const handleRefresh = async () => {
 		if (onRefresh && !refreshing) {
@@ -95,9 +120,21 @@ export const PostList = ({
 			if (item.reply_to_post_number) {
 				replyToPost = posts.find((p) => p.post_number === Number(item.reply_to_post_number));
 			}
-			return <PostItem key={item.id} post={item} replyToPost={replyToPost} onReply={onReply} onLike={onLike} renderMore={renderMore} />;
+			// 判断是否是楼主
+			const isOP = opUsername ? item.username === opUsername : false;
+			return (
+				<PostItem
+					key={item.id}
+					post={item}
+					replyToPost={replyToPost}
+					isOP={isOP}
+					onReply={onReply}
+					onLike={onLike}
+					renderMore={renderMore}
+				/>
+			);
 		},
-		[posts, onReply, onLike, renderMore],
+		[posts, opUsername, onReply, onLike, renderMore],
 	);
 
 	const renderFooter = () => {
@@ -106,7 +143,7 @@ export const PostList = ({
 		return (
 			<View className="py-4 flex items-center justify-center">
 				<ActivityIndicator size="small" color={isDark ? "#E5E7EB" : "#6B7280"} />
-				<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{t("home.loadingPosts")}</Text>
+				<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{t("common.loading") || "加载中..."}</Text>
 			</View>
 		);
 	};

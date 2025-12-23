@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeInRight, ReanimatedLogLevel, configureReanimatedLogger } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { WebViewAPIProvider } from "~/components/WebViewAPIProvider";
 import { ImageViewerProvider } from "~/components/providers/ImageViewerProvider";
 import { ThemeProvider } from "~/components/providers/ThemeProvider";
 import { initializeLanguage } from "~/lib/i18n";
@@ -30,7 +31,7 @@ function init() {
 
 export default function RootLayout() {
 	const [loading, setLoading] = useState(true);
-	const { isLoggedIn, isLoading: authLoading, init: initAuth } = useAuthStore();
+	const { isLoading: authLoading, init: initAuth } = useAuthStore();
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only run once
 	useEffect(() => {
@@ -51,36 +52,21 @@ export default function RootLayout() {
 		);
 	}
 
-	if (isLoggedIn === false) {
-		return (
-			<Providers>
-				<LoginScreen />
-			</Providers>
-		);
-	}
-
-	if (isLoggedIn === true) {
-		return (
-			<Providers>
-				<Stack>
-					<Stack.Screen name="(tabs)" options={{ headerShown: false, headerTitle: "Luma" }} />
-					<Stack.Screen
-						options={{
-							headerShown: false,
-							presentation: "transparentModal",
-						}}
-						name="activityScreen"
-					/>
-					<Stack.Screen name="+not-found" />
-				</Stack>
-			</Providers>
-		);
-	}
-
 	return (
-		<ThemeProvider>
-			<SimpleText>Failed to Load </SimpleText>
-		</ThemeProvider>
+		<Providers>
+			<Stack>
+				<Stack.Screen name="(tabs)" options={{ headerShown: false, headerTitle: "Luma" }} />
+				<Stack.Screen
+					options={{
+						headerShown: false,
+						presentation: "transparentModal",
+					}}
+					name="activityScreen"
+				/>
+				<Stack.Screen name="loginScreen" options={{ headerTitle: "Login" }} />
+				<Stack.Screen name="+not-found" />
+			</Stack>
+		</Providers>
 	);
 }
 
@@ -88,15 +74,17 @@ function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<ThemeProvider>
 			<I18nextProvider i18n={i18n}>
-				<SafeAreaView style={{ flex: 1 }}>
-					<ImageViewerProvider>
-						<GestureHandlerRootView style={{ flex: 1 }}>
-							{children}
-							<PortalHost />
-							<Toast />
-						</GestureHandlerRootView>
-					</ImageViewerProvider>
-				</SafeAreaView>
+				<WebViewAPIProvider>
+					<SafeAreaView style={{ flex: 1 }}>
+						<ImageViewerProvider>
+							<GestureHandlerRootView style={{ flex: 1 }}>
+								{children}
+								<PortalHost />
+								<Toast />
+							</GestureHandlerRootView>
+						</ImageViewerProvider>
+					</SafeAreaView>
+				</WebViewAPIProvider>
 			</I18nextProvider>
 		</ThemeProvider>
 	);

@@ -6,6 +6,7 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from "react-native";
+import { useRouter } from "expo-router";
 import RenderHtml, {
   type MixedStyleDeclaration,
   type RenderHTMLProps,
@@ -154,46 +155,6 @@ const customHTMLElementModels = {
     tagName: "svg",
     renderer: SVGRenderer,
   } as any),
-  path: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "path",
-    mixedUAStyles: {},
-  }),
-  circle: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "circle",
-    mixedUAStyles: {},
-  }),
-  rect: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "rect",
-    mixedUAStyles: {},
-  }),
-  line: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "line",
-    mixedUAStyles: {},
-  }),
-  polyline: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "polyline",
-    mixedUAStyles: {},
-  }),
-  polygon: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "polygon",
-    mixedUAStyles: {},
-  }),
-  g: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "g",
-    mixedUAStyles: {},
-  }),
-  text: HTMLElementModel.fromCustomModel({
-    contentModel: HTMLContentModel.block,
-    tagName: "text",
-    mixedUAStyles: {},
-  }),
 };
 
 const ImageRenderer: CustomBlockRenderer = ({
@@ -202,36 +163,52 @@ const ImageRenderer: CustomBlockRenderer = ({
 }: CustomRendererProps<TBlock> & {
   onImagePress?: (src: string, alt?: string) => void;
 }) => {
-  const { src, alt, width, height } = tnode.attributes;
+  const { src, alt, width: attrWidth, height: attrHeight, class: className } = tnode.attributes;
   const { width: screenWidth } = useWindowDimensions();
   const maxWidth = screenWidth - 32;
+
+  const isEmoji = className?.split(' ').includes('emoji');
 
   const imageSize = useMemo(() => {
     if (!src) return null;
 
-    const w = width ? parseInt(width) : maxWidth;
-    const h = height ? parseInt(height) : undefined;
+    if (isEmoji) {
+      const size = attrWidth ? parseInt(attrWidth) : 20;
+      return { width: size, height: size };
+    }
+
+    const w = attrWidth ? parseInt(attrWidth) : maxWidth;
+    const h = attrHeight ? parseInt(attrHeight) : undefined;
 
     if (w && h) {
       const ratio = w / h;
       const finalWidth = Math.min(w, maxWidth);
-      return {
-        width: finalWidth,
-        height: finalWidth / ratio,
-      };
+      return { width: finalWidth, height: finalWidth / ratio };
     }
 
-    return {
-      width: maxWidth,
-      height: undefined,
-      aspectRatio: 16 / 9,
-    };
-  }, [width, height, maxWidth, src]);
+    return { width: maxWidth, height: undefined, aspectRatio: 16 / 9 };
+  }, [attrWidth, attrHeight, maxWidth, src, isEmoji]);
 
   if (!src || !imageSize) return null;
 
+  if (isEmoji) {
+    return (
+      <ExpoImage
+        source={{ uri: src }}
+        alt={alt}
+        style={[imageSize, { verticalAlign: 'middle' } as any]}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+      />
+    );
+  }
+
   return (
-    <Pressable onPress={() => onImagePress?.(src, alt)} className="my-2">
+    <Pressable 
+      onPress={() => onImagePress?.(src, alt)} 
+      className="my-2"
+      style={{ width: maxWidth }} // 强制常规图片占满宽度以实现“换行”
+    >
       <ExpoImage
         source={{ uri: src }}
         alt={alt}
@@ -257,21 +234,20 @@ export const useHTMLStyles = (
     body: {
       color: colors.foreground,
       fontSize: baseSize,
-      lineHeight: baseSize * 1.5,
+      lineHeight: baseSize * 1.35,
     },
     p: {
-      marginVertical: baseSize * 0.5,
+      marginVertical: baseSize * 0.25,
       flexDirection: "row",
-      alignItems: "center",
       flexWrap: "wrap",
+      alignItems: "center",
     },
     img: {
-      display: "flex",
       marginHorizontal: 2,
     },
     a: {
-      color: colors.accent,
-      textDecorationLine: "none",
+      color: "#2563eb", // 明亮的蓝色链接
+      textDecorationLine: "underline",
     },
     strong: {
       fontWeight: "bold",
@@ -313,28 +289,40 @@ export const useHTMLStyles = (
       marginVertical: baseSize * 0.25,
     },
     h1: {
-      fontSize: baseSize * 2,
-      fontWeight: "bold",
-      marginVertical: baseSize,
-      color: colors.primaryForeground,
-    },
-    h2: {
       fontSize: baseSize * 1.5,
       fontWeight: "bold",
-      marginVertical: baseSize * 0.75,
-      color: colors.primaryForeground,
+      marginVertical: baseSize * 0.3,
+      color: colors.foreground,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
     },
-    h3: {
+    h2: {
       fontSize: baseSize * 1.25,
       fontWeight: "bold",
-      marginVertical: baseSize * 0.5,
-      color: colors.secondaryForeground,
+      marginVertical: baseSize * 0.25,
+      color: colors.foreground,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+    },
+    h3: {
+      fontSize: baseSize * 1.1,
+      fontWeight: "bold",
+      marginVertical: baseSize * 0.2,
+      color: colors.foreground,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
     },
     h4: {
-      fontSize: baseSize * 1.125,
+      fontSize: baseSize,
       fontWeight: "bold",
-      marginVertical: baseSize * 0.5,
-      color: colors.secondaryForeground,
+      marginVertical: baseSize * 0.15,
+      color: colors.foreground,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
     },
     table: {
       borderWidth: 1,
@@ -354,11 +342,19 @@ export const useHTMLStyles = (
     },
   };
 
+  const classesStyles: Partial<Record<string, MixedStyleDeclaration>> = {
+    emoji: {
+      width: 20,
+      height: 20,
+    },
+  };
+
   return {
     tagsStyles: {
       ...defaultStyles,
       ...customStyles,
     },
+    classesStyles,
     renderConfig: {
       enableExperimentalMarginCollapsing: true,
       enableExperimentalGhostLinesPrevention: true,
@@ -378,7 +374,8 @@ export const HTMLContent = memo(
     ...props
   }: HTMLContentProps) => {
     const { width } = useWindowDimensions();
-    const { tagsStyles, renderConfig } = useHTMLStyles(baseSize, customStyles);
+    const router = useRouter();
+    const { tagsStyles, classesStyles, renderConfig } = useHTMLStyles(baseSize, customStyles);
     const { showImage } = useImageViewer();
 
     const cleanHtml = useMemo(
@@ -422,6 +419,7 @@ export const HTMLContent = memo(
           contentWidth={width - 32}
           source={{ html: cleanHtml }}
           tagsStyles={tagsStyles}
+          classesStyles={classesStyles as any}
           systemFonts={systemFonts}
           customHTMLElementModels={customHTMLElementModels}
           renderers={renderers}
@@ -430,9 +428,18 @@ export const HTMLContent = memo(
           }}
           renderersProps={{
             a: {
-              onPress: (href) => {
+              onPress: (_, href) => {
                 if (typeof href === "string") {
-                  Linking.openURL(href);
+                  // 处理内部话题链接: https://linux.do/t/topic/123 -> /topic/123
+                  // 这里的正则支持 /t/topic/123, /t/123 以及带 .json 的情况
+                  const topicMatch = href.match(/https?:\/\/linux\.do\/t\/(?:topic\/)?(\d+)(?:\.json)?/i) 
+                    || href.match(/^\/t\/(?:topic\/)?(\d+)(?:\.json)?/i);
+
+                  if (topicMatch && topicMatch[1]) {
+                    router.push(`/topic/${topicMatch[1]}`);
+                  } else {
+                    Linking.openURL(href);
+                  }
                 }
               },
             },

@@ -1,7 +1,7 @@
 {
 	"expo": {
-		"name": "luma",
-		"slug": "luma",
+		"name": "LinuxDo",
+		"slug": "LinuxDo",
 		"version": "0.1.3",
 		"orientation": "portrait",
 		"icon": "./assets/images/luma-icon-512x.png",
@@ -21,7 +21,7 @@
 				"foregroundImage": "./assets/images/luma-icon-512x.png",
 				"backgroundColor": "#ffffff"
 			},
-			"package": "io.github.yuhanawa.luma"
+			"package": "io.github.yuhanawa.linuxDo"
 		},
 		"plugins": [
 			"expo-router",

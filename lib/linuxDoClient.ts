@@ -7,6 +7,8 @@ import { CookieJar, type SerializedCookieJar } from "tough-cookie";
 import type { AuthState } from "~/store/authStore";
 import DiscourseAPI from "./api";
 import type DiscourseAPIGenerated from "./api/generated";
+import type operations from "./api/generated";
+import type Prettify from "./api/index";
 import CookieManager from "./cookieManager";
 import type { ListLatestTopics200 } from "./gen/api/discourseAPI/schemas";
 import ScreenTrack from "./screenTrack";
@@ -16,10 +18,18 @@ export default class LinuxDoClient extends DiscourseAPI {
 		cookieManager ??= new CookieManager();
 		let cookieJar = cookieManager.getCurrentCookieJar();
 		if (cookieJar !== null) {
-			if (!(await CookieManager.checkCookie(cookieJar))) throw new Error("Cookie check failed: `_t` cookie not found");
+			// Check if cookie is valid, but don't throw if it's not - just create a new one
+			try {
+				if (!(await CookieManager.checkCookie(cookieJar))) {
+					console.warn("Cookie check failed, creating new cookie jar");
+					cookieJar = new CookieJar();
+				}
+			} catch (error) {
+				console.error("Error checking cookie, creating new cookie jar:", error);
+				cookieJar = new CookieJar();
+			}
 		} else {
 			console.warn("No cookie jar found, creating new one");
-			console.warn("It only should happen when use credentials login");
 			cookieJar = new CookieJar();
 		}
 		const client = new LinuxDoClient("https://linux.do", {
@@ -44,7 +54,7 @@ export default class LinuxDoClient extends DiscourseAPI {
 			if (data) {
 				if (data.error_type === "not_logged_in") {
 					console.log("Not logged in");
-					Alert.alert("Cookie Expired, please login again");
+					// Only show one alert instead of both languages
 					Alert.alert("Cookie 失效，请重新登录");
 					cookieManager.switchNewCookieBox();
 					authState?.logout();
@@ -102,6 +112,133 @@ export default class LinuxDoClient extends DiscourseAPI {
 
 	async listUnreadTopics(config?: AxiosRequestConfig): Promise<ListLatestTopics200 & { topic_list?: { more_topics_url?: string } }> {
 		return (await this.axiosInstance.get("/unread.json", config)).data;
+	}
+
+	async listTopTopics(config?: AxiosRequestConfig): Promise<ListLatestTopics200 & { topic_list?: { more_topics_url?: string } }> {
+		return (await this.axiosInstance.get("/top.json", config)).data;
+	}
+
+	async listHotTopics(config?: AxiosRequestConfig): Promise<ListLatestTopics200 & { topic_list?: { more_topics_url?: string } }> {
+		return (await this.axiosInstance.get("/hot.json", config)).data;
+	}
+
+	async searchSuggestions(
+		term: string,
+		config?: AxiosRequestConfig,
+	): Promise<{
+		posts: unknown[];
+		users: Array<{
+			id: number;
+			username: string;
+			name: string;
+			avatar_template: string;
+			custom_data: unknown[];
+			animated_avatar: string | null;
+		}>;
+		categories: unknown[];
+		tags: Array<{
+			id: number;
+			name: string;
+			topic_count: number;
+			staff: boolean;
+			description: string | null;
+		}>;
+		groups: unknown[];
+		grouped_search_result: {
+			more_posts: boolean | null;
+			more_users: boolean;
+			more_categories: boolean | null;
+			term: string;
+			more_full_page_results: boolean | null;
+			can_create_topic: boolean;
+			error: string | null;
+			extra: Record<string, unknown>;
+			post_ids: number[];
+			user_ids: number[];
+			category_ids: number[];
+			tag_ids: number[];
+			group_ids: number[];
+		};
+	}> {
+		const response = await this.axiosInstance.get("/search/query", {
+			params: {
+				term,
+				type_filter: "exclude_topics",
+			},
+			...config,
+		});
+		return response.data;
+	}
+
+	// 搜索话题接口 - 支持分页
+	async search(
+		query: string,
+		page = 1,
+		config?: AxiosRequestConfig,
+	): Promise<{
+		posts: Array<{
+			id: number;
+			name: string;
+			username: string;
+			avatar_template: string;
+			created_at: string;
+			like_count: number;
+			blurb: string;
+			post_number: number;
+			topic_title_headline: string;
+			topic_id: number;
+		}>;
+		topics: Array<{
+			id: number;
+			title: string;
+			fancy_title: string;
+			slug: string;
+			posts_count: number;
+			reply_count: number;
+			highest_post_number: number;
+			created_at: string;
+			last_posted_at: string;
+			bumped: boolean;
+			bumped_at: string;
+			archetype: string;
+			unseen: boolean;
+			pinned: boolean;
+			visible: boolean;
+			closed: boolean;
+			archived: boolean;
+			bookmarked: boolean | null;
+			liked: boolean | null;
+			category_id: number;
+			has_accepted_answer: boolean;
+		}>;
+		users: Array<{
+			id: number;
+			username: string;
+			name: string;
+			avatar_template: string;
+		}>;
+		grouped_search_result: {
+			more_posts: boolean | null;
+			more_users: boolean | null;
+			more_categories: boolean | null;
+			term: string;
+			search_log_id: number;
+			more_full_page_results: boolean | null;
+			can_create_topic: boolean;
+			error: string | null;
+			post_ids: number[];
+			user_ids: number[];
+			category_ids: number[];
+		};
+	}> {
+		const response = await this.axiosInstance.get("/search.json", {
+			params: {
+				q: query + " order:latest",
+				page,
+			},
+			...config,
+		});
+		return response.data;
 	}
 
 	async createBookmark(

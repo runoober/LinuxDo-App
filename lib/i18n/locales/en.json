@@ -74,12 +74,30 @@
 	"common": {
 		"loading": "Loading",
 		"failed": "Failed to load",
+		"loadFailed": "Failed to load",
+		"checkNetworkAndRetry": "Please check your network connection and try again",
+		"retry": "Retry",
+		"error": "Error",
 		"confirm": "Confirm",
 		"read": "Read",
 		"unread": "Unread",
 		"cancel": "Cancel",
 		"save": "Save",
-		"delete": "Delete"
+		"delete": "Delete",
+		"history": "History",
+		"recentHistory": "Recent History",
+		"activities": "Activities",
+		"viewMore": "View more"
+	},
+	"search": {
+		"placeholder": "Search...",
+		"searchInAll": "in all topics and posts",
+		"pressEnter": "or press Enter",
+		"noSuggestions": "No suggestions",
+		"search": "Search",
+		"noResults": "No topics found",
+		"enterKeyword": "Enter keywords to search",
+		"noMore": "No more results"
 	},
 	"notifications": {
 		"mark_as_read": "Mark as read",
@@ -233,14 +251,62 @@
 		"cooldownMessage": "Cooldown ({seconds}s)"
 	},
 	"tabs": {
-		"home": "Home",
-		"user": "User",
+		"home": "Topics",
+		"category": "Categories",
+        "tags": "标签",
+		"messages": "Messages",
+		"user": "Me",
+		"navigation": "Navigation",
+		"hotCategories": "Top Categories",
+		"hotTags": "Popular Tags",
+		"externalLinks": "External Links",
+		"categoryTitle": "Category: {{name}}",
+		"tagTitle": "Tag: {{name}}",
 		"dev": "Dev&Debug"
 	},
 	"home": {
 		"appName": "LUMA",
 		"loadingTopics": "Loading topics...",
-		"allTopics": "All Topics",
-		"unreadTopics": "Unread Topics"
+		"allTopics": "Latest Topics",
+		"topTopics": "Top",
+		"hotTopics": "Hot"
+	},
+	"notFound": {
+		"pageNotFound": "Page not found",
+		"backToHome": "Back to Home"
+	},
+	"app": {
+		"description": "Linux.do Unofficial Mobile App",
+		"version": "Version",
+		"github": "GitHub",
+		"license": "License"
+	},
+	"user": {
+		"myProfile": "My Profile",
+		"userInformation": "User Information",
+		"yourAccountDetails": "Your account details",
+		"username": "Username",
+		"name": "Name",
+		"logoutOrSwitchAccount": "Logout or Switch Account"
+	},
+	"topic": {
+		"topics": "Topics",
+		"noTopicsToDisplay": "No topics to display",
+		"all": "All",
+		"unread": "Unread",
+		"bookmarked": "Bookmarked",
+		"trending": "Trending",
+		"options": "Topic Options",
+		"chooseAction": "Choose an action",
+		"todo": "TODO",
+		"believeWillDoneSoon": "Let's believe it will done soon",
+		"pinned": "Pinned",
+		"lastReplyBy": "Last reply by",
+		"unbookmark": "Unbookmark",
+		"bookmark": "Bookmark",
+		"replyTo": "Reply to",
+		"none": "none",
+		"failedToSubmitReply": "Failed to submit reply",
+		"replyToTopic": "Reply to Topic"
 	}
 }

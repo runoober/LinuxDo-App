@@ -1,39 +1,46 @@
-import { formatDistanceToNow } from "date-fns";
 import { Eye, MessageCircle, Star } from "lucide-react-native";
+import { useEffect, useMemo } from "react";
 import { View } from "react-native";
 import { Text } from "~/components/ui/text";
 import type { GetTopic200 } from "~/lib/gen/api/discourseAPI/schemas/getTopic200";
+import { TitleWithEmoji } from "~/lib/titleUtils";
+import { formatRelativeTime } from "~/lib/utils/dateFormat";
+import { useCategoriesStore } from "~/store/categoriesStore";
 
 type TopicHeaderProps = {
 	topic: GetTopic200;
 };
 
 export const TopicHeader = ({ topic }: TopicHeaderProps) => {
-	const formatDate = (dateString: string) => {
-		try {
-			return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-		} catch (e) {
-			console.warn("formatDate", e);
-			return dateString;
-		}
-	};
+	const { categories, init: initCategories } = useCategoriesStore();
+
+	useEffect(() => {
+		initCategories();
+	}, [initCategories]);
+
+	// 优先使用 unicode_title（如果有），否则使用 fancy_title
+	// biome-ignore lint/suspicious/noExplicitAny: TODO
+	const titleToRender = (topic as any).unicode_title || topic.fancy_title || topic.title;
+
+	// 获取分类信息
+	const categoryId = topic.category_id || 0;
+	const category = useMemo(() => categories.find((c) => c.data.id === categoryId), [categories, categoryId]);
 
 	return (
 		<View className="p-4 pt-2 bg-card">
-			{/* biome-ignore lint/suspicious/noExplicitAny: TODO */}
-			<Text className="text-xl font-bold mb-2 text-foreground">{(topic as any).unicode_title || topic.fancy_title || topic.title}</Text>
+			<TitleWithEmoji title={titleToRender} className="text-xl font-bold mb-2 text-foreground" emojiSize={20} />
 
 			{/* Stats */}
 			<View className="flex-row justify-between items-center">
 				<View className="flex-row items-center">
 					<View className="flex-row items-center mr-4">
-						<MessageCircle size={16} className="text-muted-foreground" />
-						<Text className="ml-1 text-sm text-muted-foreground">{topic.posts_count}</Text>
+						<Eye size={16} className="text-muted-foreground" />
+						<Text className="ml-1 text-sm text-muted-foreground">{topic.views}</Text>
 					</View>
 
 					<View className="flex-row items-center mr-4">
-						<Eye size={16} className="text-muted-foreground" />
-						<Text className="ml-1 text-sm text-muted-foreground">{topic.views}</Text>
+						<MessageCircle size={16} className="text-muted-foreground" />
+						<Text className="ml-1 text-sm text-muted-foreground">{topic.posts_count}</Text>
 					</View>
 
 					{topic.like_count > 0 && (
@@ -44,19 +51,8 @@ export const TopicHeader = ({ topic }: TopicHeaderProps) => {
 					)}
 				</View>
 
-				<Text className="text-xs text-muted-foreground">{formatDate(topic.created_at)}</Text>
+				<Text className="text-xs text-muted-foreground">{formatRelativeTime(topic.created_at)}</Text>
 			</View>
-
-			{/* Tags */}
-			{/* {topic.tags && topic.tags.length > 0 && (
-				<View className="flex-row flex-wrap mt-2">
-					{topic.tags.map((tag) => (
-						<View key={`${tag}`} className="px-2 py-1 rounded-full mr-2 mb-1 bg-muted">
-							<Text className="text-xs text-muted-foreground">{`${tag}`}</Text>
-						</View>
-					))}
-				</View>
-			)} */}
 		</View>
 	);
 };

@@ -29,36 +29,45 @@ export const TopicList = ({
 	disablePull2Refresh,
 	hasMore,
 	onLoadMore,
-	emptyStateMessage = "No topics to display",
-	title = "Topics",
+	emptyStateMessage,
+	title,
 	onPress,
 	enableSwipe = true,
 	swipe,
 }: TopicListProps) => {
 	const { t } = useTranslation();
 	const { colorScheme } = useColorScheme();
-	const [items, setItems] = useState<TopicCardItem[]>(initialItems);
+	const [items, setItems] = useState<TopicCardItem[]>(initialItems || []);
 	const [refreshing, setRefreshing] = useState(false);
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [filterType, setFilterType] = useState<"all" | "unread" | "bookmarked" | "trending">("all");
 	const listRef = useRef<FlashList<TopicCardItem>>(null);
 	const onEndReachedCalledDuringMomentum = useRef(false);
 
+	// Set default values inside the component where t() is available
+	const displayTitle = title || t("topic.topics");
+	const displayEmptyStateMessage = emptyStateMessage || t("topic.noTopicsToDisplay");
+
 	// Update items when initialItems change
 	useEffect(() => {
-		setItems(initialItems);
+		setItems(initialItems || []);
 	}, [initialItems]);
 
 	const isDark = colorScheme === "dark";
 
 	const filteredItems = useMemo(
-		() =>
-			items.filter((item) => {
+		() => {
+			if (!Array.isArray(items)) {
+				console.error("TopicList: items is not an array", items);
+				return [];
+			}
+			return items.filter((item) => {
 				if (filterType === "unread") return item.unseen || (item.unread_posts && item.unread_posts > 0);
 				if (filterType === "bookmarked") return item.bookmarked;
 				if (filterType === "trending") return (item.views ?? 0) > 100 || (item.like_count ?? 0) > 10;
 				return true;
-			}),
+			});
+		},
 		[items, filterType],
 	);
 
@@ -69,7 +78,6 @@ export const TopicList = ({
 				await onRefresh();
 			} catch (error) {
 				console.error("Error refreshing:", error);
-				return <ErrorRetry onRetry={handleRefresh} />;
 			} finally {
 				setRefreshing(false);
 			}
@@ -103,7 +111,7 @@ export const TopicList = ({
 	);
 
 	const renderFooter = () => {
-		if (onLoadMore === undefined || hasMore === undefined || typeof hasMore === "boolean" ? !hasMore : !hasMore()) return null;
+		if (items.length === 0 || onLoadMore === undefined || hasMore === undefined || (typeof hasMore === "boolean" ? !hasMore : !hasMore())) return null;
 
 		return (
 			<View className="py-4 flex items-center justify-center">
@@ -115,7 +123,7 @@ export const TopicList = ({
 
 	const renderEmpty = () => (
 		<View className="flex-1 items-center justify-center py-10">
-			<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{emptyStateMessage}</Text>
+			<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{displayEmptyStateMessage}</Text>
 		</View>
 	);
 
@@ -139,7 +147,7 @@ export const TopicList = ({
 	return (
 		<View className="flex-1">
 			<View className="flex-row justify-between items-center px-4 py-3">
-				<Text className="font-bold text-lg text-foreground">{title}</Text>
+				<Text className="font-bold text-lg text-foreground">{displayTitle}</Text>
 
 				<View className="flex-row">
 					{/* TODO  filter */}
@@ -156,7 +164,7 @@ export const TopicList = ({
 					>
 						{getFilterIcon()}
 						<Text className="ml-1 text-xs text-primary">
-							{filterType === "all" ? "All" : filterType === "unread" ? "Unread" : filterType === "bookmarked" ? "Bookmarked" : "Trending"}
+							{filterType === "all" ? t("topic.all") : filterType === "unread" ? t("common.unread") : filterType === "bookmarked" ? t("topic.bookmarked") : t("topic.trending")}
 						</Text>
 					</Pressable> */}
 

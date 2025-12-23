@@ -1,7 +1,8 @@
 import type { ViewToken } from "@shopify/flash-list";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, type NativeScrollEvent, type NativeSyntheticEvent, View } from "react-native";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { ErrorRetry } from "~/components/ErrorRetry";
 import { Text } from "~/components/ui/text";
 import type { GetTopic200 } from "~/lib/gen/api/discourseAPI/schemas/getTopic200";
 import type { GetTopic200PostStreamPostsItem } from "~/lib/gen/api/discourseAPI/schemas/getTopic200PostStreamPostsItem";
@@ -24,6 +25,8 @@ export type PostPanelProps = {
 	headerComponent?: React.ReactElement;
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 	ListHeaderComponent?: React.ComponentType<any> | React.ReactElement<any> | null;
+	/** 初始滚动到的帖子编号 (来自搜索结果) */
+	initialPostNumber?: number;
 };
 
 export function PostPanel(props: PostPanelProps) {
@@ -106,7 +109,6 @@ export function PostPanel(props: PostPanelProps) {
 		} catch (error) {
 			console.error("Error loading topic:", error);
 			setError(error instanceof Error ? error : new Error(String(error)));
-			Alert.alert("Error", "Failed to load topic");
 		} finally {
 			setRefreshing(false);
 			setIsLoading(false);
@@ -159,24 +161,14 @@ export function PostPanel(props: PostPanelProps) {
 			}
 		} catch (error) {
 			console.error("Error loading more posts:", error);
-			setError(error instanceof Error ? error : new Error(String(error)));
-			Alert.alert("Error", "Failed to load more posts");
+			// 静默处理错误，不显示弹框
 		} finally {
 			setLoadingMore(false);
 		}
 	}, [client, topicId, topic, loadingMore, hasMore]);
 
 	if (error) {
-		return (
-			<View className="flex-1 items-center justify-center p-4">
-				<Text className="text-lg text-red-500 mb-4">Error loading topic</Text>
-				<View className="bg-primary px-4 py-2 rounded-md">
-					<Text className="text-primary-foreground" onPress={handleRefresh}>
-						Retry
-					</Text>
-				</View>
-			</View>
-		);
+		return <ErrorRetry onRetry={handleRefresh} message={t("topic.loadFailed", "加载话题失败")} />;
 	}
 
 	if (!topic || isLoading) {
@@ -198,6 +190,7 @@ export function PostPanel(props: PostPanelProps) {
 			}
 			ListHeaderComponent={props.ListHeaderComponent}
 			posts={topic.post_stream.posts}
+			opUsername={topic.post_stream.posts[0]?.username} // 楼主的username
 			onReply={props.onReply}
 			onLike={props.onLike}
 			renderMore={props.renderMore}
@@ -209,6 +202,7 @@ export function PostPanel(props: PostPanelProps) {
 			hasMore={hasMore}
 			disablePull2Refresh={props.disablePull2Refresh}
 			extraFlashListProps={{ onScroll: onPostListScroll, onViewableItemsChanged: onPostListViewableItemsChanged }}
+			initialPostNumber={props.initialPostNumber}
 		/>
 	);
 }

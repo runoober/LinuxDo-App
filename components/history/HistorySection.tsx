@@ -1,4 +1,5 @@
 import { History } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
 import { Button } from "~/components/ui/button";
 import { Text } from "~/components/ui/text";
@@ -6,6 +7,7 @@ import { type ActivityHistoryItem, useActivityHistoryStore } from "~/store/activ
 
 export function HistorySection({ onPress }: { onPress: (item: ActivityHistoryItem) => void }) {
 	const { history } = useActivityHistoryStore();
+	const { t } = useTranslation();
 
 	if (history.length <= 1) return null;
 
@@ -13,7 +15,7 @@ export function HistorySection({ onPress }: { onPress: (item: ActivityHistoryIte
 		<View className="mb-4">
 			<View className="flex-row items-center mb-2">
 				<History size={16} className="text-muted-foreground mr-2" />
-				<Text className="text-sm font-medium text-muted-foreground">Recent History</Text>
+				<Text className="text-sm font-medium text-muted-foreground">{t("common.recentHistory")}</Text>
 			</View>
 			<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
 				{history.slice(1).map((item) => (
