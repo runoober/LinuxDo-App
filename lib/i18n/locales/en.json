@@ -97,7 +97,8 @@
 		"search": "Search",
 		"noResults": "No topics found",
 		"enterKeyword": "Enter keywords to search",
-		"noMore": "No more results"
+		"noMore": "No more results",
+		"searchTags": "Search tags..."
 	},
 	"notifications": {
 		"mark_as_read": "Mark as read",
@@ -253,7 +254,7 @@
 	"tabs": {
 		"home": "Topics",
 		"category": "Categories",
-        "tags": "标签",
+		"tags": "Tags",
 		"messages": "Messages",
 		"user": "Me",
 		"navigation": "Navigation",

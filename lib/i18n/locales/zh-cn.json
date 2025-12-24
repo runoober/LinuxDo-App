@@ -97,7 +97,8 @@
     "search": "搜索",
     "noResults": "未找到相关话题",
     "enterKeyword": "请输入关键词进行搜索",
-    "noMore": "没有更多结果了"
+    "noMore": "没有更多结果了",
+    "searchTags": "搜索标签..."
   },
   "notifications": {
     "mark_as_read": "标记为已读",

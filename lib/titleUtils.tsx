@@ -86,7 +86,22 @@ function decodeHTMLEntities(text: string): string {
 		.replace(/&gt;/g, ">")
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'")
-		.replace(/&nbsp;/g, " ");
+		.replace(/&nbsp;/g, " ")
+		// 破折号和连字符
+		.replace(/&mdash;/g, "—")
+		.replace(/&ndash;/g, "–")
+		// 其他常见实体
+		.replace(/&hellip;/g, "…")
+		.replace(/&lsquo;/g, "'")
+		.replace(/&rsquo;/g, "'")
+		.replace(/&ldquo;/g, "\u201C")
+		.replace(/&rdquo;/g, "\u201D")
+		.replace(/&copy;/g, "©")
+		.replace(/&reg;/g, "®")
+		.replace(/&trade;/g, "™")
+		// 数字编码的 HTML 实体
+		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+		.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 }
 
 interface TitleWithEmojiProps {

@@ -190,7 +190,7 @@ export function PostPanel(props: PostPanelProps) {
 			}
 			ListHeaderComponent={props.ListHeaderComponent}
 			posts={topic.post_stream.posts}
-			opUsername={topic.post_stream.posts[0]?.username} // 楼主的username
+			opUsername={topic.details.created_by.username} // 楼主的username
 			onReply={props.onReply}
 			onLike={props.onLike}
 			renderMore={props.renderMore}
