@@ -80,7 +80,7 @@ jobs:
             echo "is_production=true" >> $GITHUB_OUTPUT
           else
             # Branch build: LinuxDo-dev-arm64-202512241613.apk
-            TIMESTAMP=$(date +'%Y%m%d%H%M')
+            TIMESTAMP=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')
             echo "apk_name=LinuxDo-${BRANCH_NAME}-${PLATFORM_SUFFIX}-${TIMESTAMP}.apk" >> $GITHUB_OUTPUT
             echo "is_production=false" >> $GITHUB_OUTPUT
           fi
