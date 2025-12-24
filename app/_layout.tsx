@@ -60,9 +60,17 @@ export default function RootLayout() {
 				<Stack.Screen
 					options={{
 						headerShown: false,
-						presentation: "transparentModal",
+                        presentation: "card",
+                        animation: "slide_from_bottom",
 					}}
 					name="activityScreen"
+				/>
+				<Stack.Screen 
+					name="topic/[id]" 
+					options={{ 
+						headerShown: false,
+						animation: "slide_from_right",
+					}} 
 				/>
 				<Stack.Screen name="loginScreen" options={{ headerTitle: "Login" }} />
 				<Stack.Screen name="+not-found" />

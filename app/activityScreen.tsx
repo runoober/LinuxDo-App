@@ -81,9 +81,12 @@ export default function ActivityScreen() {
 	const direction = localSearchparams.direction;
 
 	const history = useActivityHistoryStore.getState().history;
-	const params: ActivityScreenBaseParams =
+	const initialParams: ActivityScreenBaseParams =
 		"listTopics" in localSearchparams || history.length === 0 ? (localSearchparams as ActivityScreenBaseParams) : history[0].params;
-	const listTopics = "listTopics" in params ? params.listTopics : undefined;
+	
+	// 使用本地状态管理当前参数，避免切换历史记录时整个页面重新渲染
+	const [currentParams, setCurrentParams] = useState<ActivityScreenBaseParams>(initialParams);
+	const listTopics = "listTopics" in currentParams ? currentParams.listTopics : undefined;
 
 	const [loaded, setLoaded] = useState(false);
 	// Create appropriate shared values based on direction
@@ -102,9 +105,11 @@ export default function ActivityScreen() {
 	}, [localSearchparams]);
 
 	// Configure gesture based on direction
+	// 增加 minDistance 和更大的 activeOffset 阈值，避免与点击事件冲突
 	const backGesture = Gesture.Pan()
-		.activeOffsetX(direction === "left" || direction === "right" ? [-20, 20] : [-100, 100])
-		.activeOffsetY(direction === "up" || direction === "down" ? [-20, 20] : [-100, 100])
+		.minDistance(30)
+		.activeOffsetX(direction === "left" || direction === "right" ? [-30, 30] : [-200, 200])
+		.activeOffsetY(direction === "up" || direction === "down" ? [-30, 30] : [-200, 200])
 		.onUpdate((event) => {
 			switch (direction) {
 				case "left":
@@ -213,9 +218,12 @@ export default function ActivityScreen() {
 		}
 	});
 
+	// 使用 JSON.stringify 作为稳定的依赖项，确保参数内容变化时组件会重新渲染
+	const paramsKey = JSON.stringify(currentParams);
 	const panel = useMemo(() => {
-		return <ActivityScreenTopicPanel params={params as ActivityScreenParams & { listTopics: TopicMethods }} />;
-	}, [params]);
+		return <ActivityScreenTopicPanel params={currentParams as ActivityScreenParams & { listTopics: TopicMethods }} />;
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [paramsKey]);
 
 	const getEnteringAnimation = () => {
 		switch (direction) {
@@ -232,31 +240,35 @@ export default function ActivityScreen() {
 		}
 	};
 
+	// 切换历史记录项时的处理函数
+	const handleHistoryPress = useCallback((item: { title: string; params: ActivityScreenBaseParams }) => {
+		// 添加到历史记录
+		const historyStore = useActivityHistoryStore.getState();
+		historyStore.addToHistory(item.title, item.params);
+		// 更新本地状态，只刷新内容区域
+		setCurrentParams(item.params);
+	}, []);
+
 	return (
 		<>
 			<Stack.Screen
 				options={{
 					headerShown: false,
-					presentation: "transparentModal",
+					presentation: "card",
+					animation: "slide_from_bottom",
 				}}
 			/>
-			<GestureDetector gesture={backGesture}>
-				<Animated.View entering={getEnteringAnimation()} style={animatedStyle}>
-					<View className="flex-1 bg-background">
-						<View className="px-4 border border-b border-border">
-							<View className="h-14 flex-row items-center">
-								<Text className="text-lg font-semibold">{t("common.activities")}</Text>
-							</View>
-							<HistorySection
-								onPress={(i) => {
-									navigate({ ...i.params, title: i.title });
-								}}
-							/>
-						</View>
-						<View className="flex-1">{loaded ? panel : <TopicSkeleton />}</View>
+			<View className="flex-1 bg-background">
+				<View className="px-4 border border-b border-border">
+					<View className="h-14 flex-row items-center">
+						<Text className="text-lg font-semibold">{t("common.activities")}</Text>
 					</View>
-				</Animated.View>
-			</GestureDetector>
+					<HistorySection
+						onPress={(i) => handleHistoryPress({ title: i.title, params: i.params })}
+					/>
+				</View>
+				<View className="flex-1">{loaded ? panel : <TopicSkeleton />}</View>
+			</View>
 		</>
 	);
 }
@@ -285,20 +297,20 @@ function ActivityScreenTopicPanel({
 	);
 
 	const commonProps = {
-		disablePull2Refresh: true,
+		disablePull2Refresh: false,
 		initialItems,
 		onItemsChange: handleItemsChange,
 		title: params.title,
 	};
 
 	if (props.listTopics === "listLatestTopics" || props.listTopics === "listUnreadTopics")
-		return <TopicPanel {...(props as TopicPanelComponentProps)} {...commonProps} />;
+		return <TopicPanel key={id} {...(props as TopicPanelComponentProps)} {...commonProps} />;
 
 	if (props.listTopics === "listCategoryTopics")
-		return <CategoryTopicPanel {...(props as WithTopicPanelComponentProps<FlattenParams<CategoryTopicPanelProps>>)} {...commonProps} />;
+		return <CategoryTopicPanel key={id} {...(props as WithTopicPanelComponentProps<FlattenParams<CategoryTopicPanelProps>>)} {...commonProps} />;
 
 	if (props.listTopics === "getTag")
-		return <TagTopicPanel {...(props as WithTopicPanelComponentProps<FlattenParams<TagTopicPanelProps>>)} {...commonProps} />;
+		return <TagTopicPanel key={id} {...(props as WithTopicPanelComponentProps<FlattenParams<TagTopicPanelProps>>)} {...commonProps} />;
 
 	throw Error("ActivityScreen(getTopicPanel): Invalid params");
 }

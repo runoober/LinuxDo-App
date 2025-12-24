@@ -1,6 +1,6 @@
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { ChevronRight, History } from "lucide-react-native";
+import { ChevronRight, History, X } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,6 +35,8 @@ export default function NavigationScreen() {
 	const { colors } = useTheme();
 	const isDark = colorScheme === "dark";
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
+	const { removeFromHistory, clearHistory } = useActivityHistoryStore();
 
 	const handleRefresh = useCallback(async () => {
 		setIsRefreshing(true);
@@ -82,7 +84,7 @@ export default function NavigationScreen() {
 				const [_, h, s, l] = hslaMatch;
 				dynamicBg = `hsla(${h}, ${s}%, ${l}%, ${alpha})`;
 
-				// 热度极高时字体加粗或稍微调暗（浅色模式）/调亮（深色模式）
+				// 热度极高时字体加粗运行或稍微调暗（浅色模式）/调亮（深色模式）
 				if (ratio > 0.8) {
 					// 可以在这里进一步微调文字
 				}
@@ -114,130 +116,172 @@ export default function NavigationScreen() {
 		});
 	};
 
+	const handleClearAll = () => {
+		clearHistory();
+		setIsEditing(false);
+	};
+
+	const handleRemoveItem = (id: string) => {
+		removeFromHistory(id);
+		// 如果删空了，退出编辑模式
+		if (history.length <= 1) {
+			setIsEditing(false);
+		}
+	};
+
 	return (
-		<ScrollView
-			className="flex-1"
-			refreshControl={
-				<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />
-			}
-		>
-			<View className="p-4">
-				<Text className="text-xl font-semibold mb-4">{t("tabs.navigation")}</Text>
+		<View className="flex-1 bg-background">
+			<View className="px-4 border-b border-border bg-background">
+				<View className="h-14 flex-row items-center">
+					<Text className="text-xl font-semibold">{t("tabs.navigation")}</Text>
+				</View>
 			</View>
-
-			<NavigationSection
-				title={t("tabs.hotCategories")}
-				items={categories.slice(0, 8)}
-				onItemPress={(item) =>
-					navigate({
-						listTopics: "listCategoryTopics",
-						id: String(item.data.id),
-						slug: item.data.slug,
-						title: t("tabs.categoryTitle", { name: item.text }),
-					})
-				}
-				renderItem={(item) => {
-					const softColors = dampenColor(`#${item.data.color}`, isDark);
-					// 使用类型断言访问 icon 字段
-					const iconName = (item.data as { icon?: string }).icon;
-					const IconElement = getCategoryIcon(iconName, 16, softColors.text);
-					return (
-						<Button
-							key={item.key}
-							variant="outline"
-							size="sm"
-							className="flex-1 min-w-[45%] border-border/40 flex-row items-center"
-							style={{ backgroundColor: softColors.bg, borderColor: softColors.border }}
-							onPress={() =>
-								navigate({
-									listTopics: "listCategoryTopics",
-									id: String(item.data.id),
-									slug: item.data.slug,
-									title: t("tabs.categoryTitle", { name: item.text }),
-								})
-							}
-						>
-							{IconElement && <View className="mr-1.5">{IconElement}</View>}
-							<Text className="text-sm font-semibold" style={{ color: softColors.text }}>
-								{item.text}
-							</Text>
-						</Button>
-					);
+			<ScrollView
+				className="flex-1"
+				scrollEventThrottle={16}
+				onScroll={(e) => {
+					if (isEditing && Math.abs(e.nativeEvent.contentOffset.y) > 10) {
+						setIsEditing(false);
+					}
 				}}
-				onViewMore={() => router.navigate("/categories")}
-				delay={100}
-			/>
+				refreshControl={
+					<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+				}
+			>
+				<Pressable className="pt-4" onPress={() => isEditing && setIsEditing(false)}>
 
-			{/* 热门标签 - 显示热度 */}
-			<Animated.View entering={FadeIn.delay(200)} className="mb-4 mx-4 p-4 bg-card rounded-lg">
-				<View className="flex-row items-center justify-between mb-3">
-					<Text className="text-lg font-semibold">{t("tabs.hotTags")}</Text>
-					<Button variant="ghost" size="sm" onPress={() => router.navigate("/tags")} className="flex-row items-center">
-						<Text className="text-sm text-card-foreground mr-1">{t("common.viewMore")}</Text>
-						<ChevronRight size={16} className="text-card-foreground" />
-					</Button>
-				</View>
-				<View className="flex-row flex-wrap gap-3">
-					{processedTags.map((tag) => (
-						<Pressable
-							key={tag.key}
-							className="relative flex-1 min-w-[45%] px-3 py-2.5 border border-border/40 rounded-lg active:opacity-70"
-							style={{ backgroundColor: tag.dynamicStyles.bg, borderColor: tag.dynamicStyles.border }}
-							onPress={() => handleTagPress(tag)}
-						>
-							<Text className="text-sm font-semibold text-center" style={{ color: tag.dynamicStyles.text }} numberOfLines={1}>
-								{tag.text}
-							</Text>
-							{tag.data.count !== undefined && tag.data.count > 0 && (
-								<View
-									className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full min-w-[22px] shadow-sm"
-									style={{ backgroundColor: tag.dynamicStyles.badgeBg }}
-								>
-									<Text className="text-[12px] text-center font-bold" style={{ color: tag.dynamicStyles.text, opacity: 0.9 }}>
-										{tag.data.count >= 1000000
-											? `${(tag.data.count / 1000000).toFixed(1)}m`
-											: tag.data.count >= 1000
-												? `${(tag.data.count / 1000).toFixed(1)}k`
-												: tag.data.count}
-									</Text>
-								</View>
-							)}
-						</Pressable>
-					))}
-				</View>
-			</Animated.View>
-
-			<NavigationSection
-				title={t("tabs.externalLinks")}
-				items={EXTERNAL_LINKS}
-				onItemPress={(item) => Linking.openURL(item.data)}
-				onViewMore={() => router.navigate("/external")}
-				delay={300}
-			/>
-
-			{history.length > 0 && (
-				<View className="px-4 mb-8">
-					<View className="flex-row items-center mb-3">
-						<History size={18} className="text-muted-foreground mr-2" />
-						<Text className="text-lg font-semibold">{t("common.history")}</Text>
-					</View>
-					<View className="flex-row flex-wrap gap-2">
-						{history.slice(0, 5).map((item) => (
+				<NavigationSection
+					title={t("tabs.hotCategories")}
+					items={categories.slice(0, 8)}
+					onItemPress={(item) =>
+						navigate({
+							listTopics: "listCategoryTopics",
+							id: String(item.data.id),
+							slug: item.data.slug,
+							title: t("tabs.categoryTitle", { name: item.text }),
+						})
+					}
+					renderItem={(item) => {
+						const softColors = dampenColor(`#${item.data.color}`, isDark);
+						// 使用类型断言访问 icon 字段
+						const iconName = (item.data as { icon?: string }).icon;
+						const IconElement = getCategoryIcon(iconName, 16, softColors.text);
+						return (
 							<Button
-								key={item.id}
+								key={item.key}
 								variant="outline"
 								size="sm"
-								className="flex-1 min-w-[45%]"
-								onPress={() => navigate({ ...item.params, title: item.title })}
+								className="flex-1 min-w-[45%] border-border/40 flex-row items-center"
+								style={{ backgroundColor: softColors.bg, borderColor: softColors.border }}
+								onPress={() =>
+									navigate({
+										listTopics: "listCategoryTopics",
+										id: String(item.data.id),
+										slug: item.data.slug,
+										title: t("tabs.categoryTitle", { name: item.text }),
+									})
+								}
 							>
-								<Text className="text-sm" numberOfLines={1}>
-									{item.title}
+								{IconElement && <View className="mr-1.5">{IconElement}</View>}
+								<Text className="text-sm font-semibold" style={{ color: softColors.text }}>
+									{item.text}
 								</Text>
 							</Button>
+						);
+					}}
+					onViewMore={() => router.navigate("/categories")}
+					delay={100}
+				/>
+
+				{/* 热门标签 - 显示热度 */}
+				<Animated.View entering={FadeIn.delay(200)} className="mb-4 mx-4 p-4 bg-card rounded-lg">
+					<View className="flex-row items-center justify-between mb-3">
+						<Text className="text-lg font-semibold">{t("tabs.hotTags")}</Text>
+						<Button variant="ghost" size="sm" onPress={() => router.navigate("/tags")} className="flex-row items-center">
+							<Text className="text-sm text-card-foreground mr-1">{t("common.viewMore")}</Text>
+							<ChevronRight size={16} className="text-card-foreground" />
+						</Button>
+					</View>
+					<View className="flex-row flex-wrap gap-3">
+						{processedTags.map((tag) => (
+							<Pressable
+								key={tag.key}
+								className="relative flex-1 min-w-[45%] px-3 py-2.5 border border-border/40 rounded-lg active:opacity-70"
+								style={{ backgroundColor: tag.dynamicStyles.bg, borderColor: tag.dynamicStyles.border }}
+								onPress={() => handleTagPress(tag)}
+							>
+								<Text className="text-sm font-semibold text-center" style={{ color: tag.dynamicStyles.text }} numberOfLines={1}>
+									{tag.text}
+								</Text>
+								{tag.data.count !== undefined && tag.data.count > 0 && (
+									<View
+										className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full min-w-[22px] shadow-sm"
+										style={{ backgroundColor: tag.dynamicStyles.badgeBg }}
+									>
+										<Text className="text-[12px] text-center font-bold" style={{ color: tag.dynamicStyles.text, opacity: 0.9 }}>
+											{tag.data.count >= 1000000
+												? `${(tag.data.count / 1000000).toFixed(1)}m`
+												: tag.data.count >= 1000
+													? `${(tag.data.count / 1000).toFixed(1)}k`
+													: tag.data.count}
+										</Text>
+									</View>
+								)}
+							</Pressable>
 						))}
 					</View>
-				</View>
-			)}
-		</ScrollView>
+				</Animated.View>
+
+				<NavigationSection
+					title={t("tabs.externalLinks")}
+					items={EXTERNAL_LINKS}
+					onItemPress={(item) => Linking.openURL(item.data)}
+					onViewMore={() => router.navigate("/external")}
+					delay={300}
+				/>
+
+				{history.length > 0 && (
+					<Animated.View entering={FadeIn.delay(400)} className="mb-4 mx-4 p-4 bg-card rounded-lg">
+						<View className="flex-row items-center justify-between mb-3">
+							<Text className="text-lg font-semibold">{t("common.history")}</Text>
+							<Button
+								variant="ghost"
+								size="sm"
+								onPress={() => (isEditing ? handleClearAll() : setIsEditing(true))}
+							>
+								<Text className={`text-sm font-medium ${isEditing ? "text-destructive" : "text-card-foreground"}`}>
+									{isEditing ? t("common.clearAll") : t("common.edit")}
+								</Text>
+							</Button>
+						</View>
+						<View className="flex-row flex-wrap gap-2">
+							{history.slice(0, 10).map((item) => (
+								<View key={item.id} className="relative flex-1 min-w-[45%]">
+									<Button
+										variant="outline"
+										size="sm"
+										className="w-full"
+										onPress={() => !isEditing && navigate({ ...item.params, title: item.title })}
+									>
+										<Text className="text-sm" numberOfLines={1}>
+											{item.title}
+										</Text>
+									</Button>
+									{isEditing && (
+										<Pressable
+											className="absolute -top-1 -right-1 bg-destructive rounded-full w-5 h-5 items-center justify-center z-10"
+											onPress={() => handleRemoveItem(item.id)}
+										>
+											<X size={12} color="white" />
+										</Pressable>
+									)}
+								</View>
+							))}
+						</View>
+					</Animated.View>
+				)}
+			</Pressable>
+			</ScrollView>
+		</View>
 	);
 }

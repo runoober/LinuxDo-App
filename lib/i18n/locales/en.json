@@ -84,6 +84,8 @@
 		"cancel": "Cancel",
 		"save": "Save",
 		"delete": "Delete",
+		"edit": "Edit",
+		"clearAll": "Clear All",
 		"history": "History",
 		"recentHistory": "Recent History",
 		"activities": "Activities",

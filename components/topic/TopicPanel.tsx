@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { View } from "react-native";
@@ -56,49 +56,31 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 	const [loadMoreUrl, setLoadMoreUrl] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasMore, setHasMore] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
-	// Initialize client if not exists and refresh topics
-	useEffect(() => {
-		const initializeClientAndRefresh = async () => {
-			// 如果是未读话题且用户未登录，直接返回，不需要初始化客户端
-			if (listTopics === "listUnreadTopics" && !isLoggedIn) {
-				// 不需要设置topicItems，因为我们已经在初始状态设置了
-				return;
-			}
-
-			// 初始化客户端
-			if (!client) {
-				await initClient();
-			}
-
-			// 对于非未读话题或已登录用户，在客户端初始化后刷新数据
-			handleRefresh();
-		};
-
-		initializeClientAndRefresh();
-	}, [client, initClient, listTopics, isLoggedIn]); // 移除topicItems依赖，避免无限循环
-
-	// Only call onItemsChange when topicItems changes and is not undefined
-	useEffect(() => {
-		// Skip the initial render when topicItems is set from props.initialItems
-		if (topicItems !== undefined) {
-			props.onItemsChange?.(topicItems);
-		}
-	}, [topicItems, props.onItemsChange]);
+	// 使用 JSON.stringify 作为稳定的依赖项
+	const paramsKey = "params" in props ? JSON.stringify(props.params) : "";
+	
+	// 使用 ref 追踪加载状态
+	const isLoadingRef = useRef(false);
 
 	const handleRefresh = useCallback(async () => {
-		if (isLoading || !client) return; // Prevent multiple simultaneous calls and handle client undefined
+		// 使用 ref 检查加载状态，避免闭包陷阱
+		if (isLoadingRef.current || !client) return;
 
 		// 如果是未读话题且用户未登录，不请求数据
 		if (listTopics === "listUnreadTopics" && !isLoggedIn) {
 			setTopicItems([]);
 			setIsLoading(false);
+			isLoadingRef.current = false;
 			return;
 		}
 
 		try {
 			setIsLoading(true);
+			isLoadingRef.current = true;
 			setTopicItems(undefined);
+			setError(null);
 			let topics: Awaited<
 				ReturnType<
 					LinuxDoClient["listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics" | "getTag" | "listCategoryTopics"]
@@ -113,8 +95,14 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 				topics = await (
 					client[listTopics] as () => ReturnType<LinuxDoClient["listLatestTopics" | "listUnreadTopics" | "listTopTopics" | "listHotTopics"]>
 				)();
-			else if (listTopics === "listCategoryTopics") topics = await client[listTopics](props.params);
-			else if (listTopics === "getTag") topics = await client[listTopics](props.params);
+			else if (listTopics === "listCategoryTopics" && "params" in props) {
+				const params = props.params as { slug: string; id: number };
+				topics = await client[listTopics](params);
+			}
+			else if (listTopics === "getTag" && "params" in props) {
+				const params = props.params as { name: string };
+				topics = await client[listTopics](params);
+			}
 			else throw Error("TopicPanel(handleRefresh): Invalid listTopics");
 
 			// 合并用户信息到话题列表
@@ -123,14 +111,58 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 			const moreUrl = client.getLoadMoreTopicsUrl(topics as { topic_list?: { more_topics_url?: string } });
 			setLoadMoreUrl(moreUrl);
 			setHasMore(moreUrl !== null);
-		} catch (error: any) {
-			console.error("Error fetching topics:", error);
-			// 凡是请求失败，都确保 topicItems 不为 undefined，从而允许用户看到空状态或进行下拉刷新
-			setTopicItems((prev) => prev || []);
+		} catch (err: any) {
+			console.error("Error fetching topics:", err);
+			// 提取错误信息
+			let errorMessage = t("common.loadFailed");
+			if (err?.message) {
+				// 检查是否包含 HTTP 状态码
+				const statusMatch = err.message.match(/(\d{3})/);
+				if (statusMatch) {
+					errorMessage = `${t("common.loadFailed")} (HTTP ${statusMatch[1]})`;
+				} else {
+					errorMessage = err.message;
+				}
+			}
+			setError(errorMessage);
+			// 设置空数组以显示错误状态而不是加载状态
+			setTopicItems([]);
 		} finally {
 			setIsLoading(false);
+			isLoadingRef.current = false;
 		}
-	}, [client, isLoading, listTopics, props, isLoggedIn]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [client, listTopics, paramsKey, isLoggedIn]);
+
+	// 初始化加载数据 - 只在组件首次挂载时执行
+	useEffect(() => {
+		const initializeClientAndRefresh = async () => {
+			// 如果是未读话题且用户未登录，直接返回
+			if (listTopics === "listUnreadTopics" && !isLoggedIn) {
+				return;
+			}
+
+			// 初始化客户端
+			if (!client) {
+				await initClient();
+				return; // 等待 client 初始化后再次触发此 effect
+			}
+
+			// 刷新数据
+			handleRefresh();
+		};
+
+		initializeClientAndRefresh();
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [client, initClient, listTopics, isLoggedIn]);
+
+	// Only call onItemsChange when topicItems changes and is not undefined
+	useEffect(() => {
+		if (topicItems !== undefined) {
+			props.onItemsChange?.(topicItems);
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [topicItems]);
 
 	const handleLoadMore = useCallback(async () => {
 		if (isLoading || !hasMore || !topicItems || topicItems.length === 0 || !client) return;
@@ -171,6 +203,21 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 			setIsLoading(false);
 		}
 	}, [client, isLoading, hasMore, topicItems, loadMoreUrl]);
+
+	// 显示错误状态
+	if (error && topicItems?.length === 0) {
+		return (
+			<View className="flex-1 items-center justify-center p-4">
+				<Text className="text-destructive text-center mb-4">{error}</Text>
+				<Text className="text-muted-foreground text-center mb-4">{t("common.checkNetworkAndRetry")}</Text>
+				<View className="bg-primary rounded-lg px-6 py-3">
+					<Text className="text-primary-foreground font-medium" onPress={handleRefresh}>
+						{t("common.retry")}
+					</Text>
+				</View>
+			</View>
+		);
+	}
 
 	return topicItems !== undefined ? (
 		<TopicList

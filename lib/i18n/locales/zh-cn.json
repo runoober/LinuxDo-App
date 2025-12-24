@@ -84,6 +84,8 @@
     "cancel": "取消",
     "save": "保存",
     "delete": "删除",
+    "edit": "编辑",
+    "clearAll": "清空",
     "history": "历史记录",
     "recentHistory": "最近浏览",
     "activities": "动态活动",

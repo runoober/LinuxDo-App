@@ -32,9 +32,11 @@ import Svg, {
   Rect,
   Text as SVGText,
 } from "react-native-svg";
-import { useMemo, memo, useEffect } from "react";
+import { useMemo, memo, useEffect, useState, useCallback } from "react";
+import { Text } from "react-native";
 import { useImageViewer } from "../providers/ImageViewerProvider";
 import { useTheme } from "../providers/ThemeProvider";
+import { getTagColor } from "~/lib/utils/colorUtils";
 
 export interface HTMLContentProps extends Partial<RenderHTMLProps> {
   html: string;
@@ -225,6 +227,133 @@ const ImageRenderer: CustomBlockRenderer = ({
 
 ImageRenderer.displayName = "ImageRenderer";
 
+// 代码块折叠渲染器
+const CODE_COLLAPSE_THRESHOLD = 5; // 超过5行时显示折叠按钮
+const COLLAPSED_LINE_HEIGHT = 20; // 每行大约高度
+
+const CodeBlockRenderer: CustomBlockRenderer = function CodeBlockRendererFunc({ tnode, TDefaultRenderer, ...props }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const { colors } = useTheme();
+  
+  // 获取代码内容并计算行数
+  const codeContent = useMemo(() => {
+    const extractText = (node: any): string => {
+      if (node.type === 'text') {
+        return node.data || '';
+      }
+      if (node.children) {
+        return node.children.map(extractText).join('');
+      }
+      return '';
+    };
+    return extractText(tnode);
+  }, [tnode]);
+  
+  const lineCount = useMemo(() => {
+    const matches = codeContent.match(/\n/g);
+    return (matches || []).length + 1;
+  }, [codeContent]);
+  
+  const shouldShowToggle = lineCount > CODE_COLLAPSE_THRESHOLD;
+  
+  const toggleCollapse = useCallback(() => {
+    setIsCollapsed(prev => !prev);
+  }, []);
+
+  // 复制代码到剪贴板
+  const handleCopy = useCallback(async () => {
+    try {
+      // 懒加载 expo-clipboard
+      const Clipboard = require('expo-clipboard');
+      await Clipboard.setStringAsync(codeContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  }, [codeContent]);
+
+  // 计算折叠时的最大高度 (5行 + padding)
+  const collapsedHeight = CODE_COLLAPSE_THRESHOLD * COLLAPSED_LINE_HEIGHT + 24;
+
+  return (
+    <View style={{ position: 'relative', marginVertical: 8 }}>
+      {/* 代码内容区域 */}
+      <View 
+        style={{ 
+          maxHeight: shouldShowToggle && isCollapsed ? collapsedHeight : undefined,
+          overflow: 'hidden',
+          backgroundColor: colors.muted,
+          borderRadius: 6,
+          padding: 12,
+        }}
+      >
+        <TDefaultRenderer tnode={tnode} {...props} />
+      </View>
+      
+      {/* 折叠渐变遮罩 */}
+      {shouldShowToggle && isCollapsed && (
+        <View 
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 40,
+            backgroundColor: colors.muted,
+            opacity: 0.9,
+            borderBottomLeftRadius: 6,
+            borderBottomRightRadius: 6,
+          }}
+        />
+      )}
+      
+      {/* 右上角按钮区域 */}
+      <View style={{ position: 'absolute', top: 4, right: 4, flexDirection: 'row', gap: 4 }}>
+        {/* 复制按钮 */}
+        <Pressable
+          onPress={handleCopy}
+          style={{
+            paddingHorizontal: 6,
+            paddingVertical: 4,
+            backgroundColor: colors.background,
+            borderRadius: 4,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: copied ? '#22C55E' : colors.mutedForeground }}>
+            {copied ? '✓' : '📋'}
+          </Text>
+        </Pressable>
+
+        {/* 折叠/展开按钮 */}
+        {shouldShowToggle && (
+          <Pressable
+            onPress={toggleCollapse}
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              backgroundColor: colors.background,
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+              {isCollapsed ? `展开 (${lineCount}行)` : '收起'}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+};
+
+CodeBlockRenderer.displayName = "CodeBlockRenderer";
+
+
 export const useHTMLStyles = (
   baseSize = 16,
   customStyles: Partial<Record<TagName, MixedStyleDeclaration>> = {}
@@ -257,11 +386,9 @@ export const useHTMLStyles = (
       fontStyle: "italic",
     },
     pre: {
-      backgroundColor: colors.muted,
-      padding: baseSize * 0.75,
-      borderRadius: 6,
-      marginVertical: baseSize * 0.5,
-      overflow: "visible",
+      // 样式由 CodeBlockRenderer 处理
+      marginVertical: 0,
+      padding: 0,
     },
     code: {
       fontFamily: "monospace",
@@ -348,6 +475,17 @@ export const useHTMLStyles = (
       width: 20,
       height: 20,
     },
+    // Discourse hashtag 样式 - 与 TopicCard 标签保持一致
+    "hashtag-cooked": {
+      paddingHorizontal: 8, // px-2
+      paddingVertical: 2, // py-0.5
+      borderRadius: 9999, // rounded-full
+      fontSize: baseSize * 0.7, // text-[10px]
+      fontWeight: "700", // font-bold
+      textDecorationLine: "none",
+      marginHorizontal: 2, // mr-1
+      borderWidth: 1, // border
+    },
   };
 
   return {
@@ -375,19 +513,54 @@ export const HTMLContent = memo(
     ...props
   }: HTMLContentProps) => {
     const { width } = useWindowDimensions();
+    const { colorScheme } = useColorScheme();
+    const isDark = colorScheme === "dark";
     const router = useRouter();
     const { tagsStyles, classesStyles, renderConfig } = useHTMLStyles(baseSize, customStyles);
     const { showImage } = useImageViewer();
 
     const cleanHtml = useMemo(() => {
       // 将 :emoji_name: 短代码转换为 Discourse emoji 图片
-      const processedHtml = convertEmojiShortcodes(html);
+      let processedHtml = convertEmojiShortcodes(html);
 
-      return processedHtml
+      // ========== 第一步：提取并保护 <pre> 代码块 ==========
+      // 保留代码块内的换行符和原始内容，只清理其他地方的空白
+      const preBlocks: string[] = [];
+      processedHtml = processedHtml.replace(/<pre[\s\S]*?<\/pre>/gi, (match) => {
+        preBlocks.push(match);
+        return `__PRE_BLOCK_${preBlocks.length - 1}__`;
+      });
+
+      // ========== 第二步：处理 hashtag、lightbox meta 等（pre 已被保护） ==========
+      
+      // 处理 hashtag 链接：移除内部的 SVG 占位符，只保留标签文本，并注入动态颜色样式
+      processedHtml = processedHtml.replace(
+        /<a\s+class="hashtag-cooked"[^>]*href="([^"]*)"[^>]*>.*?<span>([^<]*)<\/span><\/a>/gi,
+        (_, href, tagName) => {
+          const colors = getTagColor(tagName, isDark);
+          return `<a class="hashtag-cooked" href="${href}" style="background-color: ${colors.bg}; color: ${colors.text}; border-color: ${colors.border};">#${tagName}</a>`;
+        }
+      );
+
+      // 移除 Discourse lightbox 图片的 meta 信息（包含 SVG 图标、文件名、尺寸等）
+      processedHtml = processedHtml.replace(/<span\s+class="informations"[^>]*>[^<]*<\/span>/gi, '');
+      processedHtml = processedHtml.replace(/<span\s+class="filename"[^>]*>[^<]*<\/span>/gi, '');
+      processedHtml = processedHtml.replace(/<svg\s+class="[^"]*d-icon[^"]*"[^>]*>[\s\S]*?<\/svg>/gi, '');
+      processedHtml = processedHtml.replace(/<div\s+class="meta"[^>]*>\s*<\/div>/gi, '');
+
+      // ========== 第三步：清理非 pre 区域的换行和空白 ==========
+      processedHtml = processedHtml
         .replace(/(\r\n|\n|\r)/gm, "")
         .replace(/\s+/g, " ")
         .trim();
-    }, [html]);
+      
+      // ========== 第四步：还原 pre 块 ==========
+      preBlocks.forEach((block, index) => {
+        processedHtml = processedHtml.replace(`__PRE_BLOCK_${index}__`, block);
+      });
+      
+      return processedHtml;
+    }, [html, isDark]);
 
     // pre fetch images
     useEffect(() => {
@@ -408,6 +581,7 @@ export const HTMLContent = memo(
             onImagePress: (src: string, alt?: string) => showImage(src, alt),
           }),
         svg: SVGRenderer,
+        pre: CodeBlockRenderer,
       }),
       [showImage]
     );
@@ -437,8 +611,14 @@ export const HTMLContent = memo(
                   const topicMatch = href.match(/https?:\/\/linux\.do\/t\/(?:topic\/)?(\d+)(?:\.json)?/i) 
                     || href.match(/^\/t\/(?:topic\/)?(\d+)(?:\.json)?/i);
 
+                  // 处理标签链接: /tag/XXX
+                  const tagMatch = href.match(/^\/tag\/([^/]+)/i);
+
                   if (topicMatch && topicMatch[1]) {
                     router.push(`/topic/${topicMatch[1]}`);
+                  } else if (tagMatch && tagMatch[1]) {
+                    // TODO: 导航到标签页面，目前暂时使用外部链接
+                    Linking.openURL(`https://linux.do${href}`);
                   } else {
                     Linking.openURL(href);
                   }

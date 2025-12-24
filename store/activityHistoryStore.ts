@@ -15,6 +15,7 @@ export type ActivityHistoryType = "tag" | "category" | "common";
 interface ActivityHistoryState {
 	history: ActivityHistoryItem[];
 	addToHistory: (title: string, params: ActivityScreenBaseParams) => void;
+	removeFromHistory: (id: string) => void;
 	clearHistory: () => void;
 }
 
@@ -34,6 +35,12 @@ export const useActivityHistoryStore = create<ActivityHistoryState>()(
 
 						return { history: newHistory };
 					});
+				},
+
+				removeFromHistory: (id) => {
+					set((state) => ({
+						history: state.history.filter((i) => i.id !== id),
+					}));
 				},
 
 				clearHistory: () => set({ history: [] }),
