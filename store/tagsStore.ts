@@ -36,13 +36,46 @@ export const useTagsStore = create<TagsState>()(
 
 				try {
 					const data = await client.listTags();
+
+					// 收集顶层 tags
+					const topLevelTags: ListTags200TagsItem[] = data.tags || [];
+
+					// 收集 extras.tag_groups 中的所有 tags
+					const tagGroupTags: ListTags200TagsItem[] = [];
+					const extras = data.extras as
+						| { tag_groups?: { id: number; name: string; tags: ListTags200TagsItem[] }[] }
+						| undefined;
+					if (extras?.tag_groups) {
+						for (const group of extras.tag_groups) {
+							if (group.tags) {
+								tagGroupTags.push(...group.tags);
+							}
+						}
+					}
+
+					// 合并并去重（以 id 为准）
+					const tagMap = new Map<string, ListTags200TagsItem>();
+					for (const tag of [...topLevelTags, ...tagGroupTags]) {
+						if (tag.id) {
+							// 如果已存在，保留 count 更大的
+							const existing = tagMap.get(tag.id);
+							if (!existing || (tag.count ?? 0) > (existing.count ?? 0)) {
+								tagMap.set(tag.id, tag);
+							}
+						}
+					}
+
+					// 转换为数组并按 count 降序排序
+					const allTags = Array.from(tagMap.values()).sort(
+						(a, b) => (b.count ?? 0) - (a.count ?? 0),
+					);
+
 					set({
-						tags:
-							data.tags?.map((tag) => ({
-								key: tag.id || "",
-								text: tag.text || "",
-								data: tag,
-							})) || [],
+						tags: allTags.map((tag) => ({
+							key: tag.id || "",
+							text: tag.text || "",
+							data: tag,
+						})),
 						isLoading: false,
 					});
 				} catch (e) {
