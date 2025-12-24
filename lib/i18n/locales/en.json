@@ -265,7 +265,7 @@
 		"dev": "Dev&Debug"
 	},
 	"home": {
-		"appName": "LUMA",
+		"appName": "LinuxDo",
 		"loadingTopics": "Loading topics...",
 		"allTopics": "Latest Topics",
 		"topTopics": "Top",

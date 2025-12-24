@@ -5,10 +5,10 @@
 		"version": "0.1.3",
 		"orientation": "portrait",
 		"icon": "./assets/images/luma-icon-512x.png",
-		"scheme": "luma",
+		"scheme": "linuxdo",
 		"userInterfaceStyle": "automatic",
 		"newArchEnabled": true,
-		"githubUrl": "https://github.com/Yuhanawa/luma",
+		"githubUrl": "https://github.com/runoober/LinuxDo-App",
 		"platforms": ["ios", "android"],
 		"ios": {
 			"supportsTablet": true,
@@ -21,7 +21,7 @@
 				"foregroundImage": "./assets/images/luma-icon-512x.png",
 				"backgroundColor": "#ffffff"
 			},
-			"package": "io.github.yuhanawa.linuxDo"
+			"package": "io.github.runoober.linuxDo"
 		},
 		"plugins": [
 			"expo-router",
