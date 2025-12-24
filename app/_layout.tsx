@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeInRight, ReanimatedLogLevel, configureReanimatedLogger } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { toastConfig } from "~/lib/toastConfig";
 import { WebViewAPIProvider } from "~/components/WebViewAPIProvider";
 import { ImageViewerProvider } from "~/components/providers/ImageViewerProvider";
 import { ThemeProvider } from "~/components/providers/ThemeProvider";
@@ -80,7 +81,7 @@ function Providers({ children }: { children: React.ReactNode }) {
 							<GestureHandlerRootView style={{ flex: 1 }}>
 								{children}
 								<PortalHost />
-								<Toast />
+								<Toast config={toastConfig} />
 							</GestureHandlerRootView>
 						</ImageViewerProvider>
 					</SafeAreaView>

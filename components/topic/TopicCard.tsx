@@ -4,12 +4,12 @@ import { useColorScheme } from "nativewind";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Animated, Pressable, View } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Text } from "~/components/ui/text";
 import type { paths } from "~/lib/api/schema";
 import { dampenColor, getContrastColor, getTagColor } from "~/lib/utils/colorUtils";
 import { formatRelativeTime } from "~/lib/utils/dateFormat";
 import { useCategoriesStore } from "~/store/categoriesStore";
+import { TitleWithEmoji } from "~/lib/titleUtils";
 import { type SwipeAction, SwipeableWrapper } from "../SwipeableWrapper";
 import { UserAvatar } from "../UserAvatar";
 
@@ -105,7 +105,7 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 	const category = useMemo(() => categories.find((c) => c.data.id === categoryId), [categories, categoryId]);
 
 	return (
-		<GestureHandlerRootView>
+		<>
 			<SwipeableWrapper enableSwipe={enableSwipe} swipe={swipe} item={item}>
 				<Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
 					<Pressable
@@ -136,9 +136,11 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 								{/* Topic Header */}
 								<View className="flex-row justify-between items-start mb-2">
 									<View className="flex-1 mr-2">
-										<Text className={`text-lg font-bold ${hasUnread ? "text-foreground" : "text-muted-foreground"}`} numberOfLines={2}>
-											{title}
-										</Text>
+										<TitleWithEmoji
+											title={title}
+											className={`text-lg font-bold ${hasUnread ? "text-foreground" : "text-muted-foreground"}`}
+											emojiSize={18}
+										/>
 									</View>
 
 									{item.pinned && (
@@ -268,6 +270,6 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 					</Pressable>
 				</Animated.View>
 			</SwipeableWrapper>
-		</GestureHandlerRootView>
+		</>
 	);
 };

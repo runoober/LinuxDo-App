@@ -1,9 +1,20 @@
 import { useColorScheme } from "nativewind";
-import { View } from "react-native";
+import { useRef } from "react";
+import { Pressable, View } from "react-native";
 import { UserAvatar } from "~/components/UserAvatar";
 import { Text } from "~/components/ui/text";
+import { Image as ExpoImage } from "expo-image";
 import { dampenColor } from "~/lib/utils/colorUtils";
 import { formatRelativeTime } from "~/lib/utils/dateFormat";
+import Toast from "react-native-toast-message";
+
+// User status 类型
+export interface UserStatus {
+	description?: string;
+	emoji?: string;
+	ends_at?: string | null;
+    message_bus_last_id: number;
+}
 
 interface PostHeaderProps {
 	username: string;
@@ -14,13 +25,37 @@ interface PostHeaderProps {
 	isOP?: boolean; // 是否是楼主
 	userTitle?: string | null;
 	flairBgColor?: string | null;
+	userStatus?: UserStatus | null;
 }
 
-export const PostHeader = ({ username, name, avatarTemplate, createdAt, postNumber, isOP, userTitle, flairBgColor }: PostHeaderProps) => {
-	// 判断是否有有效的 name（非空字符串）
+export const PostHeader = ({ username, name, avatarTemplate, createdAt, postNumber, isOP, userTitle, flairBgColor, userStatus }: PostHeaderProps) => {
 	const hasName = name && name.trim().length > 0;
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
+	const emojiRef = useRef<View>(null);
+
+	// 构建 emoji 图片 URL
+	const statusEmojiUrl = userStatus?.emoji
+		? `https://linux.do/images/emoji/twitter/${userStatus.emoji}.png`
+		: null;
+
+	// 点击 emoji 时显示自定义 Toast
+	const handleEmojiPress = () => {
+		if (userStatus?.description && emojiRef.current) {
+			emojiRef.current.measureInWindow((x, y, width, height) => {
+				// 先隐藏之前的 Toast，避免队列堆积
+				Toast.hide();
+				Toast.show({
+					type: "statusTooltip",
+					text1: userStatus.description,
+					position: "top",
+					visibilityTime: 1000,
+					topOffset: y - 30, // 显示在 emoji 上方
+					props: { x: x + width / 2 },
+				});
+			});
+		}
+	};
 
 	return (
 		<View className="flex-row justify-between items-center mb-3">
@@ -66,6 +101,18 @@ export const PostHeader = ({ username, name, avatarTemplate, createdAt, postNumb
 								>
 									{userTitle}
 								</Text>
+							</View>
+						)}
+						{/* User Status Emoji */}
+						{statusEmojiUrl && (
+							<View ref={emojiRef} collapsable={false}>
+								<Pressable onPress={handleEmojiPress}>
+									<ExpoImage
+										source={{ uri: statusEmojiUrl }}
+										style={{ width: 18, height: 18 }}
+										contentFit="contain"
+									/>
+								</Pressable>
 							</View>
 						)}
 					</View>

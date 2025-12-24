@@ -19,6 +19,7 @@ import RenderHtml, {
   TBlock,
 } from "react-native-render-html";
 import { cn } from "~/lib/utils";
+import { convertEmojiShortcodes } from "~/lib/utils/emojiUtils";
 import { Image as ExpoImage } from "expo-image";
 import Svg, {
   Circle,
@@ -206,7 +207,7 @@ const ImageRenderer: CustomBlockRenderer = ({
   return (
     <Pressable 
       onPress={() => onImagePress?.(src, alt)} 
-      className="my-2"
+      className="my-2 active:opacity-80"
       style={{ width: maxWidth }} // 强制常规图片占满宽度以实现“换行”
     >
       <ExpoImage
@@ -378,14 +379,15 @@ export const HTMLContent = memo(
     const { tagsStyles, classesStyles, renderConfig } = useHTMLStyles(baseSize, customStyles);
     const { showImage } = useImageViewer();
 
-    const cleanHtml = useMemo(
-      () =>
-        html
-          .replace(/(\r\n|\n|\r)/gm, "")
-          .replace(/\s+/g, " ")
-          .trim(),
-      [html]
-    );
+    const cleanHtml = useMemo(() => {
+      // 将 :emoji_name: 短代码转换为 Discourse emoji 图片
+      const processedHtml = convertEmojiShortcodes(html);
+
+      return processedHtml
+        .replace(/(\r\n|\n|\r)/gm, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }, [html]);
 
     // pre fetch images
     useEffect(() => {

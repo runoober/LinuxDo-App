@@ -8,9 +8,10 @@
 import { Image as ExpoImage } from "expo-image";
 import React from "react";
 import { Image, Text, View } from "react-native";
+import { convertEmojiShortcodes } from "~/lib/utils/emojiUtils";
 
-const EMOJI_IMG_REGEX = /<img[^>]+class="emoji"[^>]+src="([^"]+)"[^>]*title="([^"]*)"[^>]*\/?>/gi;
-const EMOJI_IMG_REGEX_ALT = /<img[^>]+src="([^"]+)"[^>]+class="emoji"[^>]*title="([^"]*)"[^>]*\/?>/gi;
+const EMOJI_IMG_REGEX = /<img[^>]+class="emoji[^"]*"[^>]+src="([^"]+)"[^>]*title="([^"]*)"[^>]*\/?>/gi;
+const EMOJI_IMG_REGEX_ALT = /<img[^>]+src="([^"]+)"[^>]+class="emoji[^"]*"[^>]*title="([^"]*)"[^>]*\/?>/gi;
 
 interface TitlePart {
 	type: "text" | "emoji";
@@ -24,18 +25,26 @@ interface TitlePart {
 export function parseTitleWithEmoji(title: string): TitlePart[] {
 	if (!title) return [];
 
+	// 先将 emoji 短代码转换为 img 标签
+	const processedTitle = convertEmojiShortcodes(title);
+
 	const parts: TitlePart[] = [];
 	let lastIndex = 0;
 
-	// 尝试两种可能的 img 标签格式
-	const regex = /<img[^>]+class="emoji"[^>]+src="([^"]+)"[^>]*\/?>/gi;
+	// 匹配包含 class="emoji..." 的 img 标签，支持属性任意顺序
+	// 使用更通用的正则：只要包含 class="emoji" 且包含 src 属性即可
+	const regex = /<img\s+[^>]*class="emoji[^"]*"[^>]*>/gi;
 
 	let match: RegExpExecArray | null;
 	// biome-ignore lint/suspicious/noAssignInExpressions: for performance
-	while ((match = regex.exec(title)) !== null) {
+	while ((match = regex.exec(processedTitle)) !== null) {
+		// 从 img 标签中提取 src 属性
+		const srcMatch = match[0].match(/src="([^"]+)"/i);
+		if (!srcMatch) continue;
+
 		// 添加 emoji 之前的文本
 		if (match.index > lastIndex) {
-			const text = title.slice(lastIndex, match.index);
+			const text = processedTitle.slice(lastIndex, match.index);
 			if (text.trim()) {
 				parts.push({ type: "text", content: decodeHTMLEntities(text) });
 			}
@@ -45,15 +54,15 @@ export function parseTitleWithEmoji(title: string): TitlePart[] {
 		parts.push({
 			type: "emoji",
 			content: match[0],
-			src: match[1],
+			src: srcMatch[1],
 		});
 
 		lastIndex = match.index + match[0].length;
 	}
 
 	// 添加最后的文本
-	if (lastIndex < title.length) {
-		const text = title.slice(lastIndex);
+	if (lastIndex < processedTitle.length) {
+		const text = processedTitle.slice(lastIndex);
 		if (text.trim()) {
 			parts.push({ type: "text", content: decodeHTMLEntities(text) });
 		}
@@ -61,7 +70,7 @@ export function parseTitleWithEmoji(title: string): TitlePart[] {
 
 	// 如果没有找到任何 emoji，返回原始标题
 	if (parts.length === 0) {
-		return [{ type: "text", content: decodeHTMLEntities(title) }];
+		return [{ type: "text", content: decodeHTMLEntities(processedTitle) }];
 	}
 
 	return parts;

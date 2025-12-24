@@ -17,12 +17,20 @@ on:
         options:
           - preview
           - production
+      platform:
+        description: 'Build platform'
+        required: true
+        default: 'android-arm64'
+        type: choice
+        options:
+          - android-arm64
+          - android-all
 
 jobs:
-  build:
-    name: Build Android APK
+  build-android:
+    name: Build Android
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 🏗 Setup repo
         uses: actions/checkout@v4
@@ -51,32 +59,57 @@ jobs:
       - name: 🔧 Run prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: 🚀 Build APK (Preview)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'preview' || github.event_name != 'workflow_dispatch'
+      - name: 📝 Generate version info
+        id: version
+        run: |
+          # Determine platform suffix
+          if [[ "${{ github.event.inputs.platform }}" == "android-all" ]]; then
+            PLATFORM_SUFFIX="universal"
+          else
+            PLATFORM_SUFFIX="arm64"
+          fi
+          
+          # Get branch or tag name
+          REF_NAME="${{ github.ref_name }}"
+          # Sanitize branch name (replace / with -)
+          BRANCH_NAME=$(echo "$REF_NAME" | sed 's/\//-/g')
+          
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tag build: LinuxDo-arm64-v1.0.0.apk
+            echo "apk_name=LinuxDo-${PLATFORM_SUFFIX}-${REF_NAME}.apk" >> $GITHUB_OUTPUT
+            echo "is_production=true" >> $GITHUB_OUTPUT
+          else
+            # Branch build: LinuxDo-dev-arm64-202512241613.apk
+            TIMESTAMP=$(date +'%Y%m%d%H%M')
+            echo "apk_name=LinuxDo-${BRANCH_NAME}-${PLATFORM_SUFFIX}-${TIMESTAMP}.apk" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🚀 Build APK (arm64)
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.platform == 'android-arm64'
+        run: |
+          cd android
+          ./gradlew assembleRelease -PabiFilters=arm64-v8a
+
+      - name: 🚀 Build APK (all architectures)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.platform == 'android-all'
         run: |
           cd android
           ./gradlew assembleRelease
 
-      - name: 🚀 Build AAB (Production)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'production'
+      - name: 📦 Rename APK
         run: |
-          cd android
-          ./gradlew bundleRelease
+          cd android/app/build/outputs/apk/release
+          for apk in *.apk; do
+            mv "$apk" "${{ steps.version.outputs.apk_name }}"
+            break
+          done
 
       - name: 📤 Upload APK artifact
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'preview' || github.event_name != 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 30
-
-      - name: 📤 Upload AAB artifact
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'production'
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
+          name: ${{ steps.version.outputs.apk_name }}
+          path: android/app/build/outputs/apk/release/${{ steps.version.outputs.apk_name }}
           retention-days: 30
 
       - name: 🏷️ Create Release
@@ -84,7 +117,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/release/${{ steps.version.outputs.apk_name }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

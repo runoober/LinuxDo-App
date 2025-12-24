@@ -33,6 +33,7 @@ export const PostItem = ({ post, replyToPost, isOP, onReply, onLike, renderMore 
 				isOP={isOP}
 				userTitle={post.user_title}
 				flairBgColor={post.flair_bg_color}
+				userStatus={(post as any).user_status}
 			/>
 
 			{replyToPost && (
