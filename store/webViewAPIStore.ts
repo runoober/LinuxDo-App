@@ -202,6 +202,11 @@ export const useWebViewAPIStore = create<WebViewAPIState>()((set, get) => ({
 				console.log("[WebViewAPI] Page loaded in WebView");
 				const { isVisible, currentRequest } = get();
 
+				// 如果不是挑战页面，标记就绪
+				if (!data.isChallengePage) {
+					get().setReady(true);
+				}
+
 				// 如果正在显示 WebView（CF 验证中），检查是否验证完成
 				if (isVisible && !data.isChallengePage) {
 					console.log("[WebViewAPI] CF challenge appears complete");

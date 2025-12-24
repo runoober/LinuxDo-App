@@ -709,8 +709,8 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 
 					return webViewResponse.data as T;
 				} catch (error) {
-					console.error("[WebViewAPI] Request failed:", error);
-					throw error;
+					// WebView 请求失败，静默降级到 axios
+					console.warn("[WebViewAPI] Request failed, falling back to axios:", error);
 				}
 			}
 		}

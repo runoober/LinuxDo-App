@@ -64,18 +64,23 @@ export function WebViewAPIProvider({ children }: { children: React.ReactNode }) 
 		(navState: WebViewNavigation) => {
 			console.log("[WebViewAPI] Navigation:", navState.url, "loading:", navState.loading);
 
-			if (!navState.loading && navState.url?.includes("linux.do")) {
-				// 页面加载完成，标记 WebView 就绪
-				setReady(true);
+			if (navState.loading) {
+				// 页面开始加载，标记 WebView 不就绪
+				setReady(false);
 			}
 		},
 		[setReady],
 	);
 
-	const handleLoadEnd = useCallback(() => {
-		console.log("[WebViewAPI] WebView load ended");
-		setReady(true);
+	const handleLoadStart = useCallback(() => {
+		console.log("[WebViewAPI] WebView load started");
+		setReady(false);
 	}, [setReady]);
+
+	const handleLoadEnd = useCallback(() => {
+		// 仅作为日志，就绪状态交由 handleMessage 处理
+		console.log("[WebViewAPI] WebView load ended");
+	}, []);
 
 	const handleError = useCallback((syntheticEvent: { nativeEvent: { description: string } }) => {
 		console.error("[WebViewAPI] WebView error:", syntheticEvent.nativeEvent.description);
@@ -90,12 +95,17 @@ export function WebViewAPIProvider({ children }: { children: React.ReactNode }) 
 		<>
 			{children}
 
-			{/* 隐藏的 WebView（用于 API 请求）或全屏显示（CF 验证时） */}
-			{isVisible ? (
-				// CF 验证时全屏显示
-				<Modal visible={true} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleClose} statusBarTranslucent={true}>
-					<View style={styles.modalContainer}>
-						{/* 顶部栏 */}
+			{/* 唯一常驻的 WebView 容器 */}
+			<View
+				style={[
+					isVisible ? styles.fullScreenContainer : styles.hiddenContainer,
+					{ zIndex: isVisible ? 9999 : -1 },
+				]}
+				pointerEvents={isVisible ? "auto" : "none"}
+			>
+				{isVisible && (
+					<>
+						{/* 顶部栏 - 仅在可见时显示 */}
 						<View style={styles.header}>
 							<Text style={styles.headerTitle}>安全验证</Text>
 							<Pressable onPress={handleClose} style={styles.closeButton}>
@@ -107,58 +117,39 @@ export function WebViewAPIProvider({ children }: { children: React.ReactNode }) 
 						<View style={styles.notice}>
 							<Text style={styles.noticeText}>请完成安全验证后继续使用。验证完成后会自动继续。</Text>
 						</View>
+					</>
+				)}
 
-						{/* WebView */}
-						<WebView
-							ref={webViewRef}
-							source={{ uri: LINUX_DO_BASE_URL }}
-							style={styles.webView}
-							javaScriptEnabled={true}
-							domStorageEnabled={true}
-							thirdPartyCookiesEnabled={true}
-							sharedCookiesEnabled={true}
-							injectedJavaScript={INJECTED_JS}
-							onMessage={handleMessage}
-							onNavigationStateChange={handleNavigationStateChange}
-							onLoadEnd={handleLoadEnd}
-							onError={handleError}
-							userAgent={
-								Platform.OS === "android"
-									? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-									: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-							}
-						/>
-					</View>
-				</Modal>
-			) : (
-				// 隐藏状态：渲染一个不可见的 WebView
-				<View style={styles.hiddenContainer}>
-					<WebView
-						ref={webViewRef}
-						source={{ uri: LINUX_DO_BASE_URL }}
-						style={styles.hiddenWebView}
-						javaScriptEnabled={true}
-						domStorageEnabled={true}
-						thirdPartyCookiesEnabled={true}
-						sharedCookiesEnabled={true}
-						injectedJavaScript={INJECTED_JS}
-						onMessage={handleMessage}
-						onNavigationStateChange={handleNavigationStateChange}
-						onLoadEnd={handleLoadEnd}
-						onError={handleError}
-						userAgent={
-							Platform.OS === "android"
-								? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-								: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-						}
-					/>
-				</View>
-			)}
+				<WebView
+					ref={webViewRef}
+					source={{ uri: LINUX_DO_BASE_URL }}
+					style={isVisible ? styles.webView : styles.hiddenWebView}
+					javaScriptEnabled={true}
+					domStorageEnabled={true}
+					thirdPartyCookiesEnabled={true}
+					sharedCookiesEnabled={true}
+					injectedJavaScript={INJECTED_JS}
+					onMessage={handleMessage}
+					onNavigationStateChange={handleNavigationStateChange}
+					onLoadStart={handleLoadStart}
+					onLoadEnd={handleLoadEnd}
+					onError={handleError}
+					userAgent={
+						Platform.OS === "android"
+							? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+							: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+					}
+				/>
+			</View>
 		</>
 	);
 }
 
 const styles = StyleSheet.create({
+	fullScreenContainer: {
+		...StyleSheet.absoluteFillObject,
+		backgroundColor: "#fff",
+	},
 	modalContainer: {
 		flex: 1,
 		backgroundColor: "#fff",
