@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useActivityNavigation } from "~/app/activityScreen";
 import { Search, Tag, X } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -113,6 +114,7 @@ export const SearchBox = forwardRef<SearchBoxRef>(function SearchBox(_, ref) {
 	}, [searchText, router]);
 
 	// 处理点击标签
+	const { navigate: navigateToActivity } = useActivityNavigation();
 	const handleTagPress = useCallback(
 		(tag: SearchTag) => {
 			setIsFocused(false);
@@ -120,9 +122,15 @@ export const SearchBox = forwardRef<SearchBoxRef>(function SearchBox(_, ref) {
 			setUsers([]);
 			setTags([]);
 			Keyboard.dismiss();
-			router.push(`/topic/tag/${tag.name}`);
+			// 使用 activityScreen 导航到标签话题列表
+			navigateToActivity({
+				title: `#${tag.name}`,
+				listTopics: "getTag",
+				name: tag.name,
+				direction: "down",
+			});
 		},
-		[router],
+		[navigateToActivity],
 	);
 
 	// 处理点击用户
@@ -133,7 +141,7 @@ export const SearchBox = forwardRef<SearchBoxRef>(function SearchBox(_, ref) {
 			setUsers([]);
 			setTags([]);
 			Keyboard.dismiss();
-			// 导航到用户页面
+			// TODO 导航到用户页面
 			router.push(`/user/${user.username}`);
 		},
 		[router],
