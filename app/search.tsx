@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Search } from "lucide-react-native";
+import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, TextInput, TouchableOpacity, View } from "react-native";
@@ -25,6 +25,7 @@ export default function SearchScreen() {
 	const [hasMore, setHasMore] = useState(true);
 	const [currentPage, setCurrentPage] = useState(1);
 	const currentQueryRef = useRef<string>("");
+	const inputRef = useRef<TextInput>(null);
 
 	// 执行搜索
 	const performSearch = useCallback(
@@ -132,6 +133,12 @@ export default function SearchScreen() {
 		performSearch(currentQueryRef.current, currentPage + 1, true);
 	}, [isLoading, isLoadingMore, hasMore, currentPage, performSearch]);
 
+	// 清空搜索
+	const handleClear = useCallback(() => {
+		setSearchText("");
+		inputRef.current?.focus();
+	}, []);
+
 	// 返回
 	const handleBack = useCallback(() => {
 		router.back();
@@ -179,6 +186,7 @@ export default function SearchScreen() {
 				<View className="flex-1 flex-row items-center rounded-full px-3 py-1" style={{ backgroundColor: colors.muted }}>
 					<Search size={18} color={colors.mutedForeground} />
 					<TextInput
+						ref={inputRef}
 						className="flex-1 ml-2 text-base"
 						style={{ color: colors.foreground }}
 						placeholder={t("search.placeholder") || "搜索..."}
@@ -189,6 +197,11 @@ export default function SearchScreen() {
 						returnKeyType="search"
 						autoFocus
 					/>
+					{searchText.length > 0 && (
+						<TouchableOpacity onPress={handleClear} className="p-1">
+							<X size={18} color={colors.mutedForeground} />
+						</TouchableOpacity>
+					)}
 				</View>
 				<TouchableOpacity onPress={handleSearch} className="ml-2 p-1">
 					<Text className="text-primary font-medium">{t("search.search") || "搜索"}</Text>

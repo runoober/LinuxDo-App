@@ -21,6 +21,8 @@ type TopicListProps = {
 	title?: string;
 	enableSwipe?: boolean;
 	swipe?: SwipeAction<TopicCardItem>[];
+	onScrollBeginDrag?: () => void;
+	onItemPress?: () => void;
 };
 
 export const TopicList = ({
@@ -34,6 +36,8 @@ export const TopicList = ({
 	onPress,
 	enableSwipe = true,
 	swipe,
+	onScrollBeginDrag,
+	onItemPress,
 }: TopicListProps) => {
 	const { t } = useTranslation();
 	const { colorScheme } = useColorScheme();
@@ -105,9 +109,13 @@ export const TopicList = ({
 
 	const renderItem = useCallback(
 		({ item }: { item: TopicCardItem }) => {
-			return <TopicCard item={item} onPress={onPress} enableSwipe={enableSwipe} swipe={swipe} />;
+			const handleItemPress = (id: number) => {
+				onItemPress?.();
+				onPress?.(id);
+			};
+			return <TopicCard item={item} onPress={handleItemPress} enableSwipe={enableSwipe} swipe={swipe} />;
 		},
-		[onPress, enableSwipe, swipe],
+		[onPress, enableSwipe, swipe, onItemPress],
 	);
 
 	const renderFooter = () => {
@@ -195,6 +203,7 @@ export const TopicList = ({
 					onMomentumScrollBegin={() => {
 						onEndReachedCalledDuringMomentum.current = false;
 					}}
+					onScrollBeginDrag={onScrollBeginDrag}
 					ListFooterComponent={renderFooter}
 					ListEmptyComponent={renderEmpty}
 					removeClippedSubviews={true}

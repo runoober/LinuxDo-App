@@ -209,7 +209,7 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 								{variant === "search" && item.search_blurb ? (
 									// 搜索结果模式：显示时间 - 摘要
 									<View className="flex-row items-center justify-between">
-										<Text className="text-sm text-muted-foreground flex-1" numberOfLines={1}>
+										<Text className="text-sm text-muted-foreground flex-1" numberOfLines={5}>
 											{formatRelativeTime(lastPostedAt)} - {item.search_blurb}
 										</Text>
 

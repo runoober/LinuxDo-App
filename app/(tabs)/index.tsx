@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Dimensions, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -6,7 +6,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 
 import { SceneMap, TabBar, TabView } from "react-native-tab-view";
 import { useActivityNavigation } from "~/app/activityScreen";
 import { useTheme } from "~/components/providers/ThemeProvider";
-import { SearchBox } from "~/components/search/SearchBox";
+import { SearchBox, type SearchBoxRef } from "~/components/search/SearchBox";
 import { TopicPanel } from "~/components/topic/TopicPanel";
 
 export default function HomeScreen() {
@@ -15,6 +15,12 @@ export default function HomeScreen() {
 	const { colors } = useTheme();
 	const SCREEN_WIDTH = Dimensions.get("window").width;
 	const THRESHOLD = SCREEN_WIDTH * 0.3; // 30% of screen width as threshold for gesture
+	const searchBoxRef = useRef<SearchBoxRef>(null);
+
+	// 收起搜索建议框
+	const dismissSearch = useCallback(() => {
+		searchBoxRef.current?.dismiss();
+	}, []);
 
 	// renderTabBar 在组件内部定义，确保 useTheme 被正确调用
 	const renderTabBar = useCallback(
@@ -42,11 +48,11 @@ export default function HomeScreen() {
 	const SCENE_MAP = useMemo(
 		() =>
 			SceneMap({
-				all: () => <TopicPanel listTopics="listLatestTopics" />,
-				top: () => <TopicPanel listTopics="listTopTopics" />,
-				hot: () => <TopicPanel listTopics="listHotTopics" />,
+				all: () => <TopicPanel listTopics="listLatestTopics" onScrollBeginDrag={dismissSearch} onItemPress={dismissSearch} />,
+				top: () => <TopicPanel listTopics="listTopTopics" onScrollBeginDrag={dismissSearch} onItemPress={dismissSearch} />,
+				hot: () => <TopicPanel listTopics="listHotTopics" onScrollBeginDrag={dismissSearch} onItemPress={dismissSearch} />,
 			}),
-		[],
+		[dismissSearch],
 	);
 
 	// Use translations for tab titles
@@ -91,7 +97,7 @@ export default function HomeScreen() {
 		// <GestureDetector gesture={rightSwipeGesture}>
 		<Animated.View style={[{ flex: 1 }, animatedStyle]}>
 			{/* 搜索框 */}
-			<SearchBox />
+			<SearchBox ref={searchBoxRef} />
 
 			<TabView
 				navigationState={{ index, routes: ROUTES }}

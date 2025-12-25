@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { Search, Tag, X } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Keyboard, Pressable, ScrollView, TextInput, TouchableOpacity, View } from "react-native";
 import { useTheme } from "~/components/providers/ThemeProvider";
@@ -24,7 +24,11 @@ export type SearchTag = {
 	staff: boolean;
 };
 
-export function SearchBox() {
+export type SearchBoxRef = {
+	dismiss: () => void;
+};
+
+export const SearchBox = forwardRef<SearchBoxRef>(function SearchBox(_, ref) {
 	const { t } = useTranslation();
 	const { colors } = useTheme();
 	const router = useRouter();
@@ -40,6 +44,14 @@ export function SearchBox() {
 
 	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const inputRef = useRef<TextInput>(null);
+
+	// 暴露 dismiss 方法供外部调用
+	useImperativeHandle(ref, () => ({
+		dismiss: () => {
+			setIsFocused(false);
+			Keyboard.dismiss();
+		},
+	}));
 
 	// 延迟 1 秒执行搜索
 	const handleSearchChange = useCallback(
@@ -266,4 +278,4 @@ export function SearchBox() {
 			)}
 		</View>
 	);
-}
+});

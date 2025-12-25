@@ -39,6 +39,8 @@ export type WithTopicPanelComponentProps<T> = T & {
 	swipe?: SwipeAction<TopicCardItem>[];
 	disableRefresh?: boolean;
 	disablePull2Refresh?: boolean;
+	onScrollBeginDrag?: () => void;
+	onItemPress?: () => void;
 };
 export type TopicPanelComponentProps = WithTopicPanelComponentProps<TopicPanelProps>;
 
@@ -229,6 +231,8 @@ export function TopicPanel(props: TopicPanelComponentProps) {
 			title={props.title}
 			onPress={(id) => router.push(`/topic/${id}`)}
 			swipe={props.swipe}
+			onScrollBeginDrag={props.onScrollBeginDrag}
+			onItemPress={props.onItemPress}
 		/>
 	) : (
 		<View className="flex-1 items-center justify-center">
