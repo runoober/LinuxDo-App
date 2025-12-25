@@ -157,17 +157,18 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 									</View>
 								)}
 
-								{/* Topic Stats */}
-								<View className="flex-row justify-between items-center mb-2">
+								{/* Topic Stats and Tags */}
+								<View className="flex-row justify-between items-start mb-2">
+									{/* Stats - 左对齐 */}
 									<View className="flex-row items-center">
 										{item.views !== undefined && (
-											<View className="flex-row items-center mr-4">
+											<View className="flex-row items-center mr-3">
 												<Eye size={16} className="text-muted-foreground" />
 												<Text className="ml-1 text-sm text-muted-foreground">{views}</Text>
 											</View>
 										)}
 
-										<View className="flex-row items-center mr-4">
+										<View className="flex-row items-center mr-3">
 											<MessageCircle size={16} className="text-muted-foreground" />
 											<Text className="ml-1 text-sm text-muted-foreground">{postsCount}</Text>
 										</View>
@@ -179,31 +180,31 @@ export const TopicCard = ({ item, onPress, enableSwipe = true, swipe, variant = 
 											</View>
 										)}
 									</View>
-								</View>
 
-								{/* Tags */}
-								{/* biome-ignore lint/suspicious/noExplicitAny: API 返回的 tags 字段未在类型定义中声明 */}
-								{(item as any).tags && (item as any).tags.length > 0 && (
-									<View className="flex-row flex-wrap justify-end mb-1">
-										{(item as any).tags.map((tag: string) => {
-											const tagColors = getTagColor(tag, isDark);
-											return (
-												<View
-													key={`${tag}`}
-													className="px-2 py-0.5 rounded-full mr-1 mb-1 border"
-													style={{
-														backgroundColor: tagColors.bg,
-														borderColor: tagColors.border,
-													}}
-												>
-													<Text className="text-[10px] font-bold" style={{ color: tagColors.text }}>
-														{tag}
-													</Text>
-												</View>
-											);
-										})}
-									</View>
-								)}
+									{/* Tags - 右对齐，支持换行 */}
+									{/* biome-ignore lint/suspicious/noExplicitAny: API 返回的 tags 字段未在类型定义中声明 */}
+									{(item as any).tags && (item as any).tags.length > 0 && (
+										<View className="flex-row flex-wrap justify-end flex-1 ml-2">
+											{(item as any).tags.map((tag: string) => {
+												const tagColors = getTagColor(tag, isDark);
+												return (
+													<View
+														key={`${tag}`}
+														className="px-2 py-0.5 rounded-full ml-1 mb-1 border"
+														style={{
+															backgroundColor: tagColors.bg,
+															borderColor: tagColors.border,
+														}}
+													>
+														<Text className="text-[10px] font-bold" style={{ color: tagColors.text }}>
+															{tag}
+														</Text>
+													</View>
+												);
+											})}
+										</View>
+									)}
+								</View>
 
 								{/* Last Poster / Search Blurb */}
 								{variant === "search" && item.search_blurb ? (

@@ -1,5 +1,5 @@
 import { useColorScheme } from "nativewind";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Pressable, View } from "react-native";
 import { UserAvatar } from "~/components/UserAvatar";
 import { Text } from "~/components/ui/text";
@@ -25,19 +25,29 @@ interface PostHeaderProps {
 	isOP?: boolean; // 是否是楼主
 	userTitle?: string | null;
 	flairBgColor?: string | null;
+	flairUrl?: string | null; // 自定义 emoji 图片 URL
 	userStatus?: UserStatus | null;
 }
 
-export const PostHeader = ({ username, name, avatarTemplate, createdAt, postNumber, isOP, userTitle, flairBgColor, userStatus }: PostHeaderProps) => {
+export const PostHeader = ({ username, name, avatarTemplate, createdAt, postNumber, isOP, userTitle, flairBgColor, flairUrl, userStatus }: PostHeaderProps) => {
 	const hasName = name && name.trim().length > 0;
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const emojiRef = useRef<View>(null);
 
 	// 构建 emoji 图片 URL
-	const statusEmojiUrl = userStatus?.emoji
-		? `https://linux.do/images/emoji/twitter/${userStatus.emoji}.png`
-		: null;
+	// 优先级：flairUrl > 自定义 emoji 路径 > Twitter emoji 路径
+	const statusEmojiUrl = useMemo(() => {
+		if (!userStatus?.emoji) return null;
+		const emojiName = userStatus.emoji;
+		// 检测是否是自定义 emoji（通常包含下划线后跟数字，如 lark_043）
+		const isCustomEmoji = /^[a-z]+_\d+$/.test(emojiName);
+		if (isCustomEmoji) {
+			// 如果有 flairUrl，拼接 base URL 使用；否则不显示
+			return flairUrl ? `https://linux.do${flairUrl}` : null;
+		}
+		return `https://linux.do/images/emoji/twitter/${emojiName}.png`;
+	}, [userStatus?.emoji, flairUrl]);
 
 	// 点击 emoji 时显示自定义 Toast
 	const handleEmojiPress = () => {

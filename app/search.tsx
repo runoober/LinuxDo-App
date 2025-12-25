@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "~/components/providers/ThemeProvider";
 import { TopicCard, type TopicCardItem } from "~/components/topic/TopicCard";
@@ -24,6 +24,7 @@ export default function SearchScreen() {
 	const [hasSearched, setHasSearched] = useState(false);
 	const [hasMore, setHasMore] = useState(true);
 	const [currentPage, setCurrentPage] = useState(1);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 	const currentQueryRef = useRef<string>("");
 	const inputRef = useRef<TextInput>(null);
 
@@ -133,6 +134,14 @@ export default function SearchScreen() {
 		performSearch(currentQueryRef.current, currentPage + 1, true);
 	}, [isLoading, isLoadingMore, hasMore, currentPage, performSearch]);
 
+	// 下拉刷新
+	const handleRefresh = useCallback(async () => {
+		if (!currentQueryRef.current || isRefreshing) return;
+		setIsRefreshing(true);
+		await performSearch(currentQueryRef.current, 1, false);
+		setIsRefreshing(false);
+	}, [performSearch, isRefreshing]);
+
 	// 清空搜索
 	const handleClear = useCallback(() => {
 		setSearchText("");
@@ -147,7 +156,8 @@ export default function SearchScreen() {
 	// 打开话题
 	const handleTopicPress = useCallback(
 		(topicId: number, postNumber?: number) => {
-			if (postNumber) {
+			// postNumber 为 1 时是主帖，不需要跳转到具体回复位置
+			if (postNumber && postNumber > 1) {
 				router.push(`/topic/${topicId}?post=${postNumber}`);
 			} else {
 				router.push(`/topic/${topicId}`);
@@ -230,6 +240,14 @@ export default function SearchScreen() {
 					onEndReachedThreshold={0.3}
 					ListFooterComponent={renderFooter}
 					contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 12 }}
+					refreshControl={
+						<RefreshControl
+							refreshing={isRefreshing}
+							onRefresh={handleRefresh}
+							colors={[colors.primary]}
+							tintColor={colors.primary}
+						/>
+					}
 				/>
 			) : hasSearched ? (
 				<View className="flex-1 items-center justify-center px-4">

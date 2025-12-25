@@ -34,3 +34,48 @@ export function convertEmojiShortcodes(text: string): string {
 
 	return convertedText;
 }
+
+/**
+ * Callout 类型到 emoji 的映射
+ */
+const CALLOUT_EMOJIS: Record<string, string> = {
+	success: '✅',
+	note: '📝',
+	tip: '💡',
+	warning: '⚠️',
+	caution: '🔴',
+	important: '❗',
+	info: '💬',
+	example: '📋',
+	question: '❓',
+	quote: '💬',
+	abstract: '📄',
+	summary: '📄',
+	todo: '☑️',
+	bug: '🐛',
+	danger: '⛔',
+	failure: '❌',
+	fail: '❌',
+	error: '❌',
+	attention: '⚠️',
+	check: '✅',
+};
+
+/**
+ * 将 Obsidian/GitHub 风格的 callout 语法转换为 emoji
+ * 例如 [!success] -> ✅, [!warning] -> ⚠️
+ * 
+ * @param text 包含 callout 语法的文本
+ * @returns 转换后的文本，callout 语法被替换为对应的 emoji
+ */
+export function convertCalloutSyntax(text: string): string {
+	if (!text) return text;
+	
+	return text.replace(
+		/\[!(\w+)\]/gi,
+		(_, type) => {
+			const emoji = CALLOUT_EMOJIS[type.toLowerCase()] || '📌';
+			return emoji;
+		}
+	);
+}

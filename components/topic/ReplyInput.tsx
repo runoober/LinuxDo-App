@@ -2,6 +2,7 @@ import Markdown from "@ronradtke/react-native-markdown-display";
 import { AtSign, Eye, Hash, Send, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
 	FadeIn,
 	FadeOut,
@@ -31,7 +32,8 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showPreview, setShowPreview] = useState(false);
 	const textareaRef = useRef<React.ElementRef<typeof Textarea>>(null);
-	const inputHeight = useSharedValue(120);
+	const inputHeight = useSharedValue(180);
+	const insets = useSafeAreaInsets();
 
 	// Focus the textarea when it becomes visible
 	useEffect(() => {
@@ -53,9 +55,9 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 			// Adjust height based on content length and number of lines
 			// Count newlines to estimate the number of lines
 			const lineCount = (text.match(/\n/g) || []).length + 1;
-			const baseHeight = 120;
+			const baseHeight = 180; // 包含输入框和底部按钮行
 			const lineHeight = 24; // Approximate line height
-			const calculatedHeight = Math.min(baseHeight + lineCount * lineHeight, 300);
+			const calculatedHeight = Math.min(baseHeight + lineCount * lineHeight, 360);
 
 			inputHeight.value = withTiming(calculatedHeight, { duration: 150 });
 		},
@@ -137,7 +139,7 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 				</Pressable>
 			</View>
 
-			<Animated.View style={animatedContainerStyle} className="p-4 pb-6">
+			<Animated.View style={[animatedContainerStyle, { paddingBottom: Math.max(insets.bottom, 16) }]} className="p-4 pb-6">
 				{showPreview ? (
 					<ScrollView
 						className="flex-1 mb-2 p-2 border border-input rounded-md bg-background text-foreground"

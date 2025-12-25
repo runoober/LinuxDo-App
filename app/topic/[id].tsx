@@ -247,13 +247,15 @@ export default function TopicScreen() {
 				<Animated.View entering={FadeIn.delay(500).duration(400)} className="absolute bottom-4 right-4">
 					<Pressable
 						onPress={() => {
+							if (topic?.closed) return;
 							setReplyingToPost(null);
 							setReplyInputVisible(true);
 						}}
-						className="bg-primary rounded-full px-5 py-3 shadow-lg flex-row items-center"
+						disabled={topic?.closed}
+						className={`rounded-full px-5 py-3 shadow-lg flex-row items-center ${topic?.closed ? "bg-muted" : "bg-primary"}`}
 					>
-						<Text className="text-primary-foreground font-medium mr-2">{t("topic.replyToTopic")}</Text>
-						<Send size={16} className="text-primary-foreground" />
+						<Text className={`font-medium mr-2 ${topic?.closed ? "text-muted-foreground" : "text-primary-foreground"}`}>{t("topic.replyToTopic")}</Text>
+						<Send size={16} className={topic?.closed ? "text-muted-foreground" : "text-primary-foreground"} />
 					</Pressable>
 				</Animated.View>
 

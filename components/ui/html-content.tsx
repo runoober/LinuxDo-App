@@ -19,7 +19,7 @@ import RenderHtml, {
   TBlock,
 } from "react-native-render-html";
 import { cn } from "~/lib/utils";
-import { convertEmojiShortcodes } from "~/lib/utils/emojiUtils";
+import { convertEmojiShortcodes, convertCalloutSyntax } from "~/lib/utils/emojiUtils";
 import { Image as ExpoImage } from "expo-image";
 import Svg, {
   Circle,
@@ -468,6 +468,15 @@ export const useHTMLStyles = (
       borderWidth: 1,
       borderColor: colors.border,
     },
+    // Discourse 引用块使用 aside 标签
+    aside: {
+      backgroundColor: colors.muted,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.border,
+      borderRadius: 6,
+      padding: 12,
+      marginVertical: 8,
+    },
   };
 
   const classesStyles: Partial<Record<string, MixedStyleDeclaration>> = {
@@ -485,6 +494,35 @@ export const useHTMLStyles = (
       textDecorationLine: "none",
       marginHorizontal: 2, // mr-1
       borderWidth: 1, // border
+    },
+    // Discourse quote 引用块样式
+    quote: {
+      backgroundColor: colors.muted,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.border,
+      borderRadius: 6,
+      padding: 12,
+      marginVertical: 8,
+    },
+    // 引用块标题（包含头像和用户名）
+    title: {
+      marginBottom: 8,
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    // 引用块中的头像
+    avatar: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      marginRight: 4,
+    },
+    // 引用块中的用户名
+    "quote-username": {
+      fontWeight: "600",
+      color: colors.foreground,
+      fontSize: baseSize * 0.9,
     },
   };
 
@@ -547,6 +585,25 @@ export const HTMLContent = memo(
       processedHtml = processedHtml.replace(/<span\s+class="filename"[^>]*>[^<]*<\/span>/gi, '');
       processedHtml = processedHtml.replace(/<svg\s+class="[^"]*d-icon[^"]*"[^>]*>[\s\S]*?<\/svg>/gi, '');
       processedHtml = processedHtml.replace(/<div\s+class="meta"[^>]*>\s*<\/div>/gi, '');
+      
+      // 移除 Discourse 引用块中的空 quote-controls div
+      processedHtml = processedHtml.replace(/<div\s+class="quote-controls"[^>]*>\s*<\/div>/gi, '');
+      
+      // 处理 Obsidian/GitHub 风格的 callout 语法：[!success], [!note], [!warning] 等
+      processedHtml = convertCalloutSyntax(processedHtml);
+      
+      // 处理 Discourse 引用块标题中的用户名：将头像后的裸文本包裹在 span 中
+      // 使用内联样式确保显示
+      processedHtml = processedHtml.replace(
+        /(<img[^>]*\sclass="avatar"[^>]*>)\s*([^<\n]+?)\s*(<\/div>)/gi,
+        (_, img, username, closeDiv) => {
+          const trimmedUsername = username.trim();
+          if (trimmedUsername) {
+            return `${img}<span style="font-weight: 600; margin-left: 4px;">${trimmedUsername}</span>${closeDiv}`;
+          }
+          return `${img}${closeDiv}`;
+        }
+      );
 
       // ========== 第三步：清理非 pre 区域的换行和空白 ==========
       processedHtml = processedHtml

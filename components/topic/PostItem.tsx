@@ -33,14 +33,15 @@ export const PostItem = ({ post, replyToPost, isOP, onReply, onLike, renderMore 
 				isOP={isOP}
 				userTitle={post.user_title}
 				flairBgColor={post.flair_bg_color}
+				flairUrl={(post as any).flair_url}
 				userStatus={(post as any).user_status}
 			/>
 
 			{replyToPost && (
 				<View className="mb-2 px-3 py-1 bg-muted rounded-md">
 					<View className="flex-row items-center p-0.5">
-						<MessageCircle size={16} className="text-muted-foreground mr-2 -mt-1" />
-						<Text className="text-xs text-muted-foreground text-ellipsis overflow-hidden" numberOfLines={1}>
+						<Reply size={16} className="text-muted-foreground mr-2 -mt-1" />
+						<Text className="text-sm text-muted-foreground text-ellipsis overflow-hidden" numberOfLines={1}>
 							<Text className="font-medium">@{replyToPost.username}</Text> : {excerpt}
 						</Text>
 					</View>
