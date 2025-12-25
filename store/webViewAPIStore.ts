@@ -62,6 +62,7 @@ export const useWebViewAPIStore = create<WebViewAPIState>()((set, get) => ({
 	},
 
 	setReady: (ready) => {
+		if (ready === get().isReady) return;
 		console.log("[WebViewAPI] setReady:", ready);
 		set({ isReady: ready });
 		if (ready) {

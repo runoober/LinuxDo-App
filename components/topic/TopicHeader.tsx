@@ -20,7 +20,7 @@ export const TopicHeader = ({ topic }: TopicHeaderProps) => {
 
 	// 优先使用 unicode_title（如果有），否则使用 fancy_title
 	// biome-ignore lint/suspicious/noExplicitAny: TODO
-	const titleToRender = (topic as any).unicode_title || topic.fancy_title || topic.title;
+	const titleToRender = (topic as any).unicode_title || topic.title || topic.fancy_title;
 
 	// 获取分类信息
 	const categoryId = topic.category_id || 0;

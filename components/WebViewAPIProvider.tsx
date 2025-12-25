@@ -1,8 +1,9 @@
 import { X } from "lucide-react-native";
 import type React from "react";
 import { useCallback, useEffect, useRef } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WebView, type WebViewNavigation } from "react-native-webview";
+import { USER_AGENT } from "~/lib/utils/userAgent";
 import { useWebViewAPIStore } from "~/store/webViewAPIStore";
 
 const LINUX_DO_BASE_URL = "https://linux.do";
@@ -134,11 +135,7 @@ export function WebViewAPIProvider({ children }: { children: React.ReactNode }) 
 					onLoadStart={handleLoadStart}
 					onLoadEnd={handleLoadEnd}
 					onError={handleError}
-					userAgent={
-						Platform.OS === "android"
-							? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-							: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-					}
+					userAgent={USER_AGENT}
 				/>
 			</View>
 		</>

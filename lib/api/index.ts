@@ -33,10 +33,9 @@ import type { ValidateFunction } from "ajv";
 import _ajvErrors from "ajv-errors";
 import _ajvFormats from "ajv-formats";
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios";
-import { wrapper as axios_cookiejar_warper } from "axios-cookiejar-support";
 import Constants from "expo-constants";
 import type { OpenAPIV3_1 } from "openapi-types";
-import { Cookie, CookieJar, type SerializedCookieJar } from "tough-cookie";
+import { CookieJar, type SerializedCookieJar } from "tough-cookie";
 import { useWebViewAPIStore } from "~/store/webViewAPIStore";
 import DiscourseAPIGenerated from "./generated";
 import spec from "./openapi.json";
@@ -554,6 +553,103 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 	}
 
 	/**
+	 * 通用的网络请求方法，支持 WebView 优先策略。
+	 */
+	protected async request<T>({
+		method,
+		url,
+		header = {},
+		query = {},
+		body = {},
+		formData,
+	}: {
+		method: string;
+		url: string;
+		header?: Record<string, string | undefined>;
+		query?: Record<string, any>;
+		body?: any;
+		formData?: any;
+	}): Promise<T> {
+		// 构造查询字符串
+		const searchParams = new URLSearchParams();
+		for (const [key, value] of Object.entries(query)) {
+			if (Array.isArray(value)) {
+				for (const v of value) {
+					searchParams.append(key, String(v));
+				}
+			} else if (value !== undefined && value !== null) {
+				searchParams.append(key, String(value));
+			}
+		}
+		const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+		const fullUrl = url.startsWith("http") ? url : `${this.url}${url}${queryString}`;
+		const relativeUrl = url.startsWith("http") ? url.replace(this.url, "") : url;
+
+		// 如果使用 WebView API 进行请求
+		if (this.useWebViewAPI) {
+			console.log(`[WebViewAPI] Request: ${method} ${relativeUrl}`);
+
+			const { executeRequest, isReady } = useWebViewAPIStore.getState();
+
+			if (!isReady) {
+				console.warn("[WebViewAPI] WebView not ready, falling back to axios");
+				// 回退到 axios
+			} else {
+				try {
+					const fetchOptions: RequestInit = {
+						method: method,
+						headers: {
+							Accept: "application/json",
+							"X-Requested-With": "XMLHttpRequest",
+							...(header as Record<string, string>),
+						},
+						credentials: "include",
+					};
+
+					// 添加请求体
+					if (formData) {
+						fetchOptions.body = formData as unknown as BodyInit;
+					} else if (Object.keys(body).length > 0) {
+						fetchOptions.body = JSON.stringify(body);
+						fetchOptions.headers = {
+							...fetchOptions.headers,
+							"Content-Type": "application/json",
+						};
+					}
+
+					const webViewResponse = await executeRequest(fullUrl, fetchOptions);
+
+					if (!webViewResponse.ok) {
+						throw new HTTPError(
+							webViewResponse.status,
+							webViewResponse.statusText,
+							null as unknown as AxiosResponse, // WebView API 没有 AxiosResponse
+						);
+					}
+
+					return webViewResponse.data as T;
+				} catch (error) {
+					// WebView 请求失败，静默降级到 axios
+					console.warn("[WebViewAPI] Request failed, falling back to axios:", error);
+				}
+			}
+		}
+
+		// Prepare the Axios request configuration.
+		const requestConfig: AxiosRequestConfig = {
+			method: method as any,
+			url: relativeUrl,
+			headers: header,
+			params: query,
+			data: formData || (Object.keys(body).length > 0 ? body : undefined),
+		};
+
+		// Execute the request using the Axios instance.
+		const response = await this.axiosInstance(requestConfig);
+		return response.data;
+	}
+
+	/**
 	 * Executes an API call to the Discourse instance.
 	 * @param operationName - The name of the operation to execute (e.g., 'listLatestTopics').
 	 * @param params - The parameters for the operation.
@@ -561,7 +657,7 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 	 * @throws {HTTPError} If the API call fails with an HTTP error status.
 	 * @throws {Error} If the operation is unknown or if there's a parameter mismatch.
 	 */
-	override async _exec<T>(operationName: string, params = {} as Record<string, string>): Promise<T> {
+	override async _exec<T>(operationName: string, params = {} as Record<string, any>): Promise<T> {
 		// Get the operation data from the generated API client.
 		const operation = byOperationId[operationName];
 		if (!operation) {
@@ -570,9 +666,9 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 
 		// Initialize data structures for different parameter types.
 		const header: { [key: string]: string | undefined } = {}; // Headers can be optional.
-		const query: { [key: string]: string } = {};
+		const query: { [key: string]: any } = {};
 		const path: { [key: string]: string } = {};
-		const body: { [key: string]: string | Blob } = {}; // Body can be a string or a Blob.
+		const body: { [key: string]: any } = {}; // Body can be a string or a Blob.
 		let formData: FormData | undefined; // For multipart/form-data requests.
 		let contentType: string | undefined;
 
@@ -661,73 +757,14 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 		// Construct the URL, replacing path parameters with their actual values.
 		const url = operation.path.replace(/\{([^}]+)\}/g, (_, p) => path[p] || `{${p}}`);
 
-		// 构造查询字符串
-		const queryString = Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : "";
-		const fullUrl = `${this.url}${url}${queryString}`;
-
-		// 如果使用 WebView API 进行请求
-		if (this.useWebViewAPI) {
-			console.log(`[WebViewAPI] Request: ${operation.method} ${url}`);
-
-			const { executeRequest, isReady } = useWebViewAPIStore.getState();
-
-			if (!isReady) {
-				console.warn("[WebViewAPI] WebView not ready, falling back to axios");
-				// 回退到 axios
-			} else {
-				try {
-					const fetchOptions: RequestInit = {
-						method: operation.method,
-						headers: {
-							Accept: "application/json",
-							"X-Requested-With": "XMLHttpRequest",
-							...header,
-						},
-						credentials: "include",
-					};
-
-					// 添加请求体
-					if (formData) {
-						fetchOptions.body = formData as unknown as BodyInit;
-					} else if (Object.keys(body).length > 0) {
-						fetchOptions.body = JSON.stringify(body);
-						fetchOptions.headers = {
-							...fetchOptions.headers,
-							"Content-Type": "application/json",
-						};
-					}
-
-					const webViewResponse = await executeRequest(fullUrl, fetchOptions);
-
-					if (!webViewResponse.ok) {
-						throw new HTTPError(
-							webViewResponse.status,
-							webViewResponse.statusText,
-							null as unknown as AxiosResponse, // WebView API 没有 AxiosResponse
-						);
-					}
-
-					return webViewResponse.data as T;
-				} catch (error) {
-					// WebView 请求失败，静默降级到 axios
-					console.warn("[WebViewAPI] Request failed, falling back to axios:", error);
-				}
-			}
-		}
-
-		// Prepare the Axios request configuration.
-		const requestConfig: AxiosRequestConfig = {
-			method: operation.method, // HTTP method (GET, POST, PUT, DELETE, etc.).
-			url: url, // The request URL.
-			headers: header, // HTTP headers.
-			params: query, // Query parameters (Axios handles these).
-			data: formData || (Object.keys(body).length > 0 ? body : undefined), // Request body (Axios handles FormData and JSON).
-		};
-
-		// Execute the request using the Axios instance.
-		// Error has been handled in this.axiosInstance.interceptors.response.use
-		const response = await this.axiosInstance(requestConfig);
-		return response.data;
+		return this.request<T>({
+			method: operation.method,
+			url,
+			header,
+			query,
+			body,
+			formData,
+		});
 	}
 
 	/**
@@ -851,13 +888,15 @@ export default class DiscourseAPI extends DiscourseAPIGenerated {
 		};
 		error?: string;
 	}> {
-		const response = await this.axiosInstance.post("/session", {
-			login,
-			password,
-			second_factor_method,
-			timezone,
+		return this.request({
+			method: "POST",
+			url: "/session",
+			body: {
+				login,
+				password,
+				second_factor_method,
+				timezone,
+			},
 		});
-
-		return response.data;
 	}
 }
