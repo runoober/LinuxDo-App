@@ -290,7 +290,9 @@
 		"yourAccountDetails": "Your account details",
 		"username": "Username",
 		"name": "Name",
-		"logoutOrSwitchAccount": "Logout or Switch Account"
+		"logoutOrSwitchAccount": "Logout or Switch Account",
+		"stats": "Statistics",
+		"loadFailed": "Failed to load user info"
 	},
 	"topic": {
 		"topics": "Topics",

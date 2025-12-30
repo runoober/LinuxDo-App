@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Bookmark, ChevronRight, FileText, LogOut, Settings, Users } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Toast from "react-native-toast-message";
 import { ErrorRetry } from "~/components/ErrorRetry";
 import { UserAvatar } from "~/components/UserAvatar";
@@ -11,6 +11,7 @@ import { Text } from "~/components/ui/text";
 import { UserHeader } from "~/components/user/UserHeader";
 import { UserInfo } from "~/components/user/UserInfo";
 import { UserStats } from "~/components/user/UserStats";
+import { useTheme } from "~/components/providers/ThemeProvider";
 import { useAuthStore } from "~/store/authStore";
 import { useLinuxDoClientStore } from "~/store/linuxDoClientStore";
 import { useUserStore } from "~/store/userStore";
@@ -26,6 +27,7 @@ export default function UserScreen() {
 	const { isLoggedIn, checkLoginStatus, logout, init: initAuth } = useAuthStore();
 	const client = useLinuxDoClientStore().client;
 	const { userData, isLoading, error, init: initUser } = useUserStore();
+	const { colors } = useTheme();
 
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	interface UserSummary {
@@ -70,10 +72,19 @@ export default function UserScreen() {
 		await initAuth();
 		if (isLoggedIn) {
 			await initUser();
+			// 重新获取用户摘要
+			if (userData && client) {
+				try {
+					const summary = await client.getUserSummary(userData.user.username);
+					setUserSummary(summary);
+				} catch (e) {
+					console.error("ERROR: When refreshing user summary", e);
+				}
+			}
 		}
 
 		setIsRefreshing(false);
-	}, [isRefreshing, initAuth, initUser, isLoggedIn]);
+	}, [isRefreshing, initAuth, initUser, isLoggedIn, userData, client]);
 
 	// Navigate to login screen
 	const handleLoginPress = () => {
@@ -130,7 +141,17 @@ export default function UserScreen() {
 	];
 
 	return (
-		<ScrollView className="flex-1 bg-background">
+		<ScrollView 
+			className="flex-1 bg-background"
+			refreshControl={
+				<RefreshControl 
+					refreshing={isRefreshing} 
+					onRefresh={handleRefresh} 
+					tintColor={colors.primary} 
+					colors={[colors.primary]} 
+				/>
+			}
+		>
 			<View className="p-4">
 				<UserHeader />
 				{isLoading ? (
@@ -161,7 +182,7 @@ export default function UserScreen() {
 							<UserStats
 								stats={[
 									{ label: "访问天数", value: userSummary.user_summary.days_visited },
-									{ label: "阅读时间", value: userSummary.user_summary.time_read },
+									{ label: "阅读时间", value: userSummary.user_summary.time_read, isTimeValue: true },
 									{ label: "已读帖子", value: userSummary.user_summary.posts_read_count },
 									{ label: "获得点赞", value: userSummary.user_summary.likes_received },
 								]}
