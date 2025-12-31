@@ -158,13 +158,27 @@ export default function TopicScreen() {
 							}),
 				});
 				console.log("Submitting reply:", { content, replyToPostId, topicId: id, response });
-				handleRefresh();
-			} catch (error) {
+				// 回复成功后不刷新整个页面，用户可以通过底部下拉加载新回复
+				Toast.show({
+					type: "success",
+					text1: t("topic.replySuccess") || "回复成功",
+					text2: t("topic.pullToLoadNewReplies") || "下拉底部可加载新回复",
+				});
+			} catch (error: unknown) {
 				console.error("Error submitting reply:", error);
-				Alert.alert(t("common.error"), t("topic.failedToSubmitReply"));
+				// 尝试从错误响应中提取具体错误信息
+				let errorMessage = t("topic.failedToSubmitReply");
+				if (error && typeof error === "object") {
+					const axiosError = error as { response?: { data?: { errors?: string[] } } };
+					if (axiosError.response?.data?.errors && Array.isArray(axiosError.response.data.errors)) {
+						errorMessage = axiosError.response.data.errors.join("\n");
+					}
+				}
+				Alert.alert(t("common.error"), errorMessage);
+				throw error; // 重新抛出以便 ReplyInput 处理状态
 			}
 		},
-		[id, client, handleRefresh],
+		[id, client, t],
 	);
 
 	// Close the reply input

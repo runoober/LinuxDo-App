@@ -2,7 +2,7 @@ import { FlashList, type FlashListProps } from "@shopify/flash-list";
 import { useColorScheme } from "nativewind";
 import { type ComponentType, type JSXElementConstructor, type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, type NativeScrollEvent, type NativeSyntheticEvent, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
 import type { GetTopic200PostStreamPostsItem } from "~/lib/gen/api/discourseAPI/schemas/getTopic200PostStreamPostsItem";
 import { ErrorRetry } from "../ErrorRetry";
@@ -16,7 +16,7 @@ type PostListProps = {
 	onLike?: (post: GetTopic200PostStreamPostsItem) => void;
 	renderMore?: (post: GetTopic200PostStreamPostsItem, rerenderItem: () => void) => React.ReactNode;
 	onLoadMore?: () => Promise<void>;
-	onRefresh?: () => Promise<void>;
+	onRefresh?: (forceRefresh?: boolean) => Promise<void>;
 	isLoading?: boolean;
 	headerComponent?: ReactElement;
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
@@ -25,6 +25,10 @@ type PostListProps = {
 	emptyStateMessage?: string;
 	disablePull2Refresh?: boolean;
 	hasMore?: boolean | (() => boolean);
+	/** 当底部过度滚动时重新尝试加载更多 */
+	onRetryLoadMore?: () => void;
+	/** 外部传入的加载更多状态（用于重试加载时显示 loading） */
+	isLoadingMore?: boolean;
 	extraFlashListProps?: Omit<FlashListProps<GetTopic200PostStreamPostsItem>, "ref" | "data" | "renderItem" | "ListHeaderComponent">;
 	/** 初始滚动到的帖子编号 (来自搜索结果) */
 	initialPostNumber?: number;
@@ -45,6 +49,8 @@ export const PostList = ({
 	emptyStateMessage = "No posts to display",
 	disablePull2Refresh,
 	hasMore,
+	onRetryLoadMore,
+	isLoadingMore,
 	extraFlashListProps,
 	initialPostNumber,
 }: PostListProps) => {
@@ -59,6 +65,8 @@ export const PostList = ({
 
 	const isDark = colorScheme === "dark";
 	const hasScrolledToInitialPost = useRef(false);
+	const isAtBottom = useRef(false);
+	const lastContentHeight = useRef(0);
 
 	// 当 posts 加载完成且有 initialPostNumber 时，滚动到指定位置
 	useEffect(() => {
@@ -84,7 +92,8 @@ export const PostList = ({
 			setRefreshing(true);
 			setError(null);
 			try {
-				await onRefresh();
+				// 下拉刷新时强制从服务器获取新数据
+				await onRefresh(true);
 			} catch (error) {
 				console.error("Error refreshing:", error);
 				setError(error instanceof Error ? error : new Error(String(error)));
@@ -113,6 +122,69 @@ export const PostList = ({
 		}
 	};
 
+	// 检测底部过度滚动，当 hasMore 为 false 时，继续向下拉会重新尝试加载
+	const lastRetryTime = useRef(0);
+	const bottomReachCount = useRef(0);
+	const lastBottomReachTime = useRef(0);
+	
+	const handleScroll = useCallback(
+		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+			const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+			const paddingToBottom = 10;
+			const isAtEnd = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+			const hasMoreValue = typeof hasMore === "boolean" ? hasMore : hasMore?.();
+			
+			// 记录是否在底部
+			isAtBottom.current = isAtEnd;
+			lastContentHeight.current = contentSize.height;
+			
+			const now = Date.now();
+			
+			// 在底部且没有更多内容时，记录到达底部的次数
+			if (isAtEnd && !hasMoreValue && onRetryLoadMore && !loadingMore && !isLoadingMore) {
+				// 如果距离上次到达底部超过 500ms，重置计数
+				if (now - lastBottomReachTime.current > 500) {
+					bottomReachCount.current = 0;
+				}
+				
+				bottomReachCount.current++;
+				lastBottomReachTime.current = now;
+				
+				// 连续 3 次触发底部检测，且距离上次重试超过 3 秒，触发重试
+				if (bottomReachCount.current >= 3 && now - lastRetryTime.current > 3000) {
+					console.log("Bottom reached " + bottomReachCount.current + " times, retrying load more...");
+					lastRetryTime.current = now;
+					bottomReachCount.current = 0;
+					onRetryLoadMore();
+				}
+			}
+
+			// 调用外部传入的 onScroll
+			extraFlashListProps?.onScroll?.(event);
+		},
+		[extraFlashListProps, hasMore, onRetryLoadMore, loadingMore, isLoadingMore],
+	);
+
+	// 当用户松开手指时，如果在底部则尝试触发
+	const handleScrollEndDrag = useCallback(
+		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+			const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+			const isAtEnd = layoutMeasurement.height + contentOffset.y >= contentSize.height - 10;
+			const hasMoreValue = typeof hasMore === "boolean" ? hasMore : hasMore?.();
+			const now = Date.now();
+			
+			// 在底部松开时，如果没有更多内容且距离上次重试超过 3 秒，触发重试
+			if (isAtEnd && !hasMoreValue && onRetryLoadMore && !loadingMore && !isLoadingMore) {
+				if (now - lastRetryTime.current > 3000) {
+					console.log("Bottom scroll end, retrying load more...");
+					lastRetryTime.current = now;
+					onRetryLoadMore();
+				}
+			}
+		},
+		[hasMore, onRetryLoadMore, loadingMore, isLoadingMore],
+	);
+
 	const renderItem = useCallback(
 		({ item }: { item: GetTopic200PostStreamPostsItem }) => {
 			// Find the post being replied to if reply_to_post_number exists
@@ -138,14 +210,29 @@ export const PostList = ({
 	);
 
 	const renderFooter = () => {
-		if (onLoadMore === undefined || hasMore === undefined || typeof hasMore === "boolean" ? !hasMore : !hasMore()) return null;
-
-		return (
-			<View className="py-4 flex items-center justify-center">
-				<ActivityIndicator size="small" color={isDark ? "#E5E7EB" : "#6B7280"} />
-				<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{t("common.loading") || "加载中..."}</Text>
-			</View>
-		);
+		const hasMoreValue = typeof hasMore === "boolean" ? hasMore : hasMore?.();
+		
+		// 正在加载更多时显示加载指示器（包括内部加载和外部传入的重试加载状态）
+		if (loadingMore || isLoadingMore) {
+			return (
+				<View className="py-4 flex items-center justify-center">
+					<ActivityIndicator size="small" color={isDark ? "#E5E7EB" : "#6B7280"} />
+					<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{t("common.loading") || "加载中..."}</Text>
+				</View>
+			);
+		}
+		
+		// hasMore 为 true 时也显示加载指示器
+		if (onLoadMore !== undefined && hasMoreValue) {
+			return (
+				<View className="py-4 flex items-center justify-center">
+					<ActivityIndicator size="small" color={isDark ? "#E5E7EB" : "#6B7280"} />
+					<Text className={`text-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>{t("common.loading") || "加载中..."}</Text>
+				</View>
+			);
+		}
+		
+		return null;
 	};
 
 	const renderEmpty = () => (
@@ -180,6 +267,7 @@ export const PostList = ({
 					ListEmptyComponent={renderEmpty}
 					ListFooterComponent={renderFooter}
 					ListHeaderComponent={ListHeaderComponent}
+					extraData={{ isLoadingMore, loadingMore, hasMore }}
 					{...(onRefresh
 						? {
 								onRefresh: disablePull2Refresh ? undefined : handleRefresh,
@@ -191,7 +279,10 @@ export const PostList = ({
 					onMomentumScrollBegin={() => {
 						onEndReachedCalledDuringMomentum.current = false;
 					}}
+					onScroll={handleScroll}
+					onScrollEndDrag={handleScrollEndDrag}
 					{...extraFlashListProps}
+					// 确保外部传入的 onScroll 不会覆盖我们的处理（已在 handleScroll 中合并）
 				/>
 			</Animated.View>
 		</View>

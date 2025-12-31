@@ -58,14 +58,15 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
     .split(" ")
     .map(Number);
 
-  const renderSVGElement = (node: any) => {
+  const renderSVGElement = (node: any, index: number): React.ReactNode => {
     const attrs = node.attributes || {};
+    const key = node.key || `svg-element-${index}`;
 
     switch (node.tagName) {
       case "path":
         return (
           <Path
-            key={node.key}
+            key={key}
             d={attrs.d}
             fill={attrs.fill}
             stroke={attrs.stroke}
@@ -74,7 +75,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       case "circle":
         return (
           <Circle
-            key={node.key}
+            key={key}
             cx={attrs.cx}
             cy={attrs.cy}
             r={attrs.r}
@@ -85,7 +86,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       case "rect":
         return (
           <Rect
-            key={node.key}
+            key={key}
             x={attrs.x}
             y={attrs.y}
             width={attrs.width}
@@ -97,7 +98,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       case "line":
         return (
           <Line
-            key={node.key}
+            key={key}
             x1={attrs.x1}
             y1={attrs.y1}
             x2={attrs.x2}
@@ -108,7 +109,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       case "polyline":
         return (
           <Polyline
-            key={node.key}
+            key={key}
             points={attrs.points}
             fill={attrs.fill}
             stroke={attrs.stroke}
@@ -117,7 +118,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       case "polygon":
         return (
           <Polygon
-            key={node.key}
+            key={key}
             points={attrs.points}
             fill={attrs.fill}
             stroke={attrs.stroke}
@@ -125,13 +126,13 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
         );
       case "g":
         return (
-          <G key={node.key} {...attrs}>
-            {node.children?.map((child: any) => renderSVGElement(child))}
+          <G key={key} {...attrs}>
+            {node.children?.map((child: any, childIndex: number) => renderSVGElement(child, childIndex))}
           </G>
         );
       case "text":
         return (
-          <SVGText key={node.key} {...attrs}>
+          <SVGText key={key} {...attrs}>
             {node.children?.[0]?.data}
           </SVGText>
         );
@@ -147,7 +148,7 @@ const SVGRenderer: CustomBlockRenderer = ({ tnode }) => {
       viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
       {...otherAttrs}
     >
-      {tnode.children?.map((child: any) => renderSVGElement(child))}
+      {tnode.children?.map((child: any, index: number) => renderSVGElement(child, index))}
     </Svg>
   );
 };

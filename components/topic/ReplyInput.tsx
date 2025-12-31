@@ -1,7 +1,7 @@
 import Markdown from "@ronradtke/react-native-markdown-display";
-import { AtSign, Eye, Hash, Send, X } from "lucide-react-native";
+import { AtSign, Eye, Hash, Send, Smile, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
 	FadeIn,
@@ -18,6 +18,7 @@ import { Textarea } from "~/components/ui/textarea";
 import type { GetTopic200PostStreamPostsItem } from "~/lib/gen/api/discourseAPI/schemas/getTopic200PostStreamPostsItem";
 import { getInnerText } from "~/lib/utils/html";
 import { useTheme } from "../providers/ThemeProvider";
+import { EmojiPicker } from "./EmojiPicker";
 
 interface ReplyInputProps {
 	visible: boolean;
@@ -31,6 +32,7 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 	const [content, setContent] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showPreview, setShowPreview] = useState(false);
+	const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 	const textareaRef = useRef<React.ElementRef<typeof Textarea>>(null);
 	const inputHeight = useSharedValue(180);
 	const insets = useSafeAreaInsets();
@@ -44,6 +46,7 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 		} else {
 			setContent("");
 			setIsSubmitting(false);
+			setShowEmojiPicker(false);
 		}
 	}, [visible]);
 
@@ -67,29 +70,41 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 	// Insert special characters at cursor position
 	const insertAtCursor = useCallback(
 		(textToInsert: string) => {
-			if (!textareaRef.current) return;
-
-			// TODO: doesn't work
-			// Get current selection
-			const selectionStart = textareaRef.current.props?.selection?.start || content.length;
-			const selectionEnd = textareaRef.current.props?.selection?.end || content.length;
-
-			// Create new text with insertion
-			const newText = content.substring(0, selectionStart) + textToInsert + content.substring(selectionEnd);
-
-			setContent(newText);
+			// Simply append to the end of content
+			setContent((prev) => prev + textToInsert);
 
 			// Focus back on textarea after a short delay
 			setTimeout(() => {
 				textareaRef.current?.focus();
 			}, 50);
 		},
-		[content],
+		[],
 	);
 
 	// Toggle markdown preview
 	const togglePreview = useCallback(() => {
 		setShowPreview((prev) => !prev);
+		setShowEmojiPicker(false);
+	}, []);
+
+	// Toggle emoji picker
+	const toggleEmojiPicker = useCallback(() => {
+		if (!showEmojiPicker) {
+			// 关闭键盘，显示表情面板
+			Keyboard.dismiss();
+		}
+		setShowEmojiPicker((prev) => !prev);
+		setShowPreview(false);
+	}, [showEmojiPicker]);
+
+	// Handle emoji selection
+	const handleEmojiSelect = useCallback((emojiCode: string) => {
+		setContent((prev) => prev + emojiCode);
+	}, []);
+
+	// Handle textarea focus - hide emoji picker when textarea is focused
+	const handleTextareaFocus = useCallback(() => {
+		setShowEmojiPicker(false);
 	}, []);
 
 	// Handle submit
@@ -158,6 +173,7 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 						className="flex-1 mb-2 text-base"
 						autoFocus={false}
 						textAlignVertical="top"
+						onFocus={handleTextareaFocus}
 					/>
 				)}
 
@@ -169,6 +185,9 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 						</Button>
 						<Button variant="outline" size="sm" onPress={() => insertAtCursor("@")} className="mr-2">
 							<AtSign size={16} className="text-foreground" />
+						</Button>
+						<Button variant={showEmojiPicker ? "default" : "outline"} size="sm" onPress={toggleEmojiPicker} className="mr-2">
+							<Smile size={16} className={showEmojiPicker ? "text-primary-foreground" : "text-foreground"} />
 						</Button>
 						<Button variant={showPreview ? "default" : "outline"} size="sm" onPress={togglePreview}>
 							<Eye size={16} className={showPreview ? "text-primary-foreground" : "text-foreground"} />
@@ -185,6 +204,9 @@ export const ReplyInput = ({ visible, replyingTo, onClose, onSubmit }: ReplyInpu
 					</View>
 				</View>
 			</Animated.View>
+
+			{/* Emoji Picker */}
+			<EmojiPicker visible={showEmojiPicker} onEmojiSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />
 		</Animated.View>
 	);
 };

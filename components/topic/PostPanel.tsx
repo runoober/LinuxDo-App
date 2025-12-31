@@ -83,12 +83,31 @@ export function PostPanel(props: PostPanelProps) {
 	);
 
 	// Initial load if no topic provided
+	// Stale-while-revalidate: 先显示缓存数据，然后后台静默刷新
 	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 	useEffect(() => {
 		if (props.initialTopic) {
 			setTopic(props.initialTopic);
 			setIsLoading(false);
-		} else handleRefresh();
+		} else {
+			// 先尝试使用缓存快速显示
+			const cachedData = postsCache.get(topicId);
+			if (cachedData) {
+				setTopic(cachedData);
+				setIsLoading(false);
+				// 后台静默刷新获取最新数据
+				client.getTopic({ id: topicId }).then((response) => {
+					setTopic(response);
+					postsCache.set(topicId, response);
+				}).catch((error) => {
+					console.error("Background refresh failed:", error);
+					// 静默失败，不显示错误（已有缓存数据）
+				});
+			} else {
+				// 没有缓存，正常加载
+				handleRefresh();
+			}
+		}
 	}, []);
 
 	// Update cache when topic changes
@@ -99,13 +118,19 @@ export function PostPanel(props: PostPanelProps) {
 		}
 	}, [topic, postsCache.set, topicId, props.onTopicChange]);
 
-	const handleRefresh = useCallback(async () => {
+	const handleRefresh = useCallback(async (forceRefresh = false) => {
 		if (refreshing) return;
 		try {
 			setRefreshing(true);
 			setError(null);
-			const response = postsCache.get(topicId) ?? (await client.getTopic({ id: topicId }));
+			// 如果是强制刷新或没有缓存，则从服务器获取
+			const cachedData = forceRefresh ? null : postsCache.get(topicId);
+			const response = cachedData ?? (await client.getTopic({ id: topicId }));
 			setTopic(response);
+			// 如果是从服务器获取的新数据，更新缓存
+			if (!cachedData) {
+				postsCache.set(topicId, response);
+			}
 		} catch (error) {
 			console.error("Error loading topic:", error);
 			setError(error instanceof Error ? error : new Error(String(error)));
@@ -113,7 +138,7 @@ export function PostPanel(props: PostPanelProps) {
 			setRefreshing(false);
 			setIsLoading(false);
 		}
-	}, [refreshing, topicId, client, postsCache.get]);
+	}, [refreshing, topicId, client, postsCache.get, postsCache.set]);
 
 	const handleLoadMore = useCallback(async () => {
 		if (loadingMore || !hasMore || !topic) return;
@@ -167,6 +192,117 @@ export function PostPanel(props: PostPanelProps) {
 		}
 	}, [client, topicId, topic, loadingMore, hasMore]);
 
+	// 底部过度滚动时重新尝试加载更多：重新获取帖子详情更新 stream，然后加载新帖子
+	const handleRetryLoadMore = useCallback(async () => {
+		if (loadingMore) return;
+		
+		// 使用 setTopic 获取最新的 topic 状态
+		let currentTopic: GetTopic200 | undefined;
+		setTopic((prev) => {
+			currentTopic = prev;
+			return prev;
+		});
+		
+		if (!currentTopic) return;
+		
+		try {
+			setLoadingMore(true);
+			console.log("Retrying load more: fetching latest topic data...");
+			
+			// 1. 重新获取帖子详情，更新 post_stream.stream
+			const latestTopic = await client.getTopic({ id: topicId });
+			
+			// 2. 使用最新的 topic 状态获取当前已加载的最后一个帖子
+			// 再次获取最新状态（可能在请求期间有变化）
+			setTopic((prev) => {
+				currentTopic = prev;
+				return prev;
+			});
+			
+			if (!currentTopic) return;
+			
+			const currentPosts = currentTopic.post_stream.posts;
+			const lastPostId = currentPosts[currentPosts.length - 1].id;
+			console.log("Current last post ID:", lastPostId, "Total loaded posts:", currentPosts.length);
+			
+			// 3. 在新的 stream 中找到当前位置
+			const newStream = latestTopic.post_stream?.stream || [];
+			const currentIndex = newStream.findIndex((id) => id === lastPostId);
+			console.log("Current index in new stream:", currentIndex, "New stream length:", newStream.length);
+			
+			if (currentIndex === -1 || currentIndex >= newStream.length - 1) {
+				console.log("No new posts available");
+				setHasMore(false);
+				// 更新 stream 到最新
+				setTopic((prevTopic) => {
+					if (!prevTopic) return prevTopic;
+					const updated = { ...prevTopic, post_stream: { ...prevTopic.post_stream, stream: newStream } };
+					postsCache.set(topicId, updated);
+					return updated;
+				});
+				return;
+			}
+			
+			// 4. 获取当前位置之后的帖子 ID，过滤掉已加载的
+			const loadedPostIds = new Set(currentPosts.map(p => p.id));
+			const neededPostIds = newStream
+				.slice(currentIndex + 1, currentIndex + 20)
+				.map((id) => id as number)
+				.filter(id => !loadedPostIds.has(id));
+			
+			if (neededPostIds.length === 0) {
+				console.log("No more posts to load after refresh (all already loaded)");
+				setHasMore(false);
+				return;
+			}
+			
+			console.log("Loading new posts:", neededPostIds);
+			
+			// 5. 获取新帖子内容
+			const postsResponse = await client.getPostsFromTopic(topicId, { post_ids: neededPostIds });
+			
+			if (postsResponse.post_stream?.posts && postsResponse.post_stream.posts.length > 0) {
+				// 6. 更新 topic 状态，合并新帖子和更新后的 stream
+				setTopic((prevTopic) => {
+					if (!prevTopic) return prevTopic;
+					
+					// 过滤掉已存在的帖子，避免重复
+					const existingIds = new Set(prevTopic.post_stream.posts.map(p => p.id).filter((id): id is number => id !== undefined));
+					const newPosts = postsResponse.post_stream!.posts!.filter(p => p.id !== undefined && !existingIds.has(p.id));
+					
+					if (newPosts.length === 0) {
+						console.log("All fetched posts already exist, skipping update");
+						return prevTopic;
+					}
+					
+					console.log("Adding", newPosts.length, "new posts to list");
+					const updatedTopic = {
+						...prevTopic,
+						post_stream: {
+							...prevTopic.post_stream,
+							stream: newStream,
+							// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+							posts: [...prevTopic.post_stream.posts, ...(newPosts as any)],
+						},
+					};
+					// 更新缓存
+					postsCache.set(topicId, updatedTopic);
+					return updatedTopic;
+				});
+				
+				// 7. 检查是否还有更多帖子
+				const allPosts = [...currentPosts, ...postsResponse.post_stream.posts];
+				const lastUpdatedPostId = allPosts[allPosts.length - 1].id;
+				const updatedIndex = newStream.findIndex((id) => id === lastUpdatedPostId);
+				setHasMore(updatedIndex < newStream.length - 1);
+			}
+		} catch (error) {
+			console.error("Error retrying load more:", error);
+		} finally {
+			setLoadingMore(false);
+		}
+	}, [client, topicId, loadingMore, postsCache.set]);
+
 	if (error) {
 		return <ErrorRetry onRetry={handleRefresh} message={t("topic.loadFailed", "加载话题失败")} />;
 	}
@@ -200,6 +336,8 @@ export function PostPanel(props: PostPanelProps) {
 			title={props.title ?? topic.title}
 			emptyStateMessage={t("topic.noPosts", "No posts in this topic yet")}
 			hasMore={hasMore}
+			onRetryLoadMore={handleRetryLoadMore}
+			isLoadingMore={loadingMore}
 			disablePull2Refresh={props.disablePull2Refresh}
 			extraFlashListProps={{ onScroll: onPostListScroll, onViewableItemsChanged: onPostListViewableItemsChanged }}
 			initialPostNumber={props.initialPostNumber}
