@@ -69,22 +69,18 @@ export default function UserScreen() {
 		if (isRefreshing) return;
 		setIsRefreshing(true);
 
-		await initAuth();
-		if (isLoggedIn) {
-			await initUser();
-			// 重新获取用户摘要
-			if (userData && client) {
-				try {
-					const summary = await client.getUserSummary(userData.user.username);
-					setUserSummary(summary);
-				} catch (e) {
-					console.error("ERROR: When refreshing user summary", e);
-				}
+		try {
+			// 只刷新用户摘要，不调用 initAuth 避免触发全局状态变化
+			if (isLoggedIn && userData && client) {
+				const summary = await client.getUserSummary(userData.user.username);
+				setUserSummary(summary);
 			}
+		} catch (e) {
+			console.error("ERROR: When refreshing user data", e);
+		} finally {
+			setIsRefreshing(false);
 		}
-
-		setIsRefreshing(false);
-	}, [isRefreshing, initAuth, initUser, isLoggedIn, userData, client]);
+	}, [isRefreshing, isLoggedIn, userData, client]);
 
 	// Navigate to login screen
 	const handleLoginPress = () => {
